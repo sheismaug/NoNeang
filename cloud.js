@@ -78,6 +78,7 @@ const URL = ${JSON.stringify(c.url)};
 const KEY = ${JSON.stringify(c.key)};
 const TOKEN = ${JSON.stringify(this.token || '')};
 const ASSETS = ${JSON.stringify(base)};
+const APP = ${JSON.stringify(base.replace(/w\/$/, ''))};
 ` + WIDGET_BODY;
   },
 
@@ -132,7 +133,7 @@ const d = await load(); const now = new Date(); const pad = (n) => String(n).pad
 const tk = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
 const fam = config.widgetFamily || 'medium';
 const w = new ListWidget(); w.setPadding(10, 12, 12, 12);
-const chick = await img('plain-chicken');
+let chick = await img('plain-chicken'); if (!chick) chick = await img('icon-chicken'); if (!chick) { const sf = SFSymbol.named('fork.knife'); sf.applyBoldWeight(); chick = sf.image; }
 if (!d) { w.backgroundColor = Y; text(w, 'NoNeang', 14); w.addSpacer(4); text(w, 'เปิดแอปแล้วกดซิงก์ก่อนนะ', 12, MUT, false); }
 else {
   const fresh = d.date === tk; const eaten = fresh ? d.eaten : 0; const prot = fresh ? d.protein : 0;
@@ -174,12 +175,13 @@ else {
       row.addSpacer(); R.addSpacer(); text(R, '≈ ' + d.sug.k + ' kcal · P +' + d.sug.p + ' g', 10, new Color('#5E4A00'), false);
     } else {
       R.addSpacer(); const c = R.addStack(); c.layoutHorizontally(); c.addSpacer();
-      const m2 = await img(evening ? 'mascot-sleepy' : 'mascot-happy'); if (m2) { const mi = c.addImage(m2); mi.imageSize = new Size(52, 52); } c.addSpacer();
-      R.addSpacer(4); const t1 = text(R, !fresh ? 'ยังไม่ได้จดวันนี้' : (d.loggedToday ? 'วันนี้ครบแล้ว เก่งมาก' : 'วันนี้พอแล้ว กดจดครบนะ'), 11); t1.centerAlignText(); R.addSpacer();
+      const m2 = await img(evening ? 'mascot-sleepy' : 'mascot-happy'); if (m2) { const mi = c.addImage(m2); mi.imageSize = new Size(48, 48); } c.addSpacer();
+      R.addSpacer(6); const tr = R.addStack(); tr.layoutHorizontally(); tr.addSpacer();
+      const t1 = text(tr, !fresh ? 'ยังไม่ได้จดวันนี้' : (d.loggedToday ? 'วันนี้ครบแล้ว เก่งมาก' : 'วันนี้พอแล้ว\nกดจดครบนะ'), 15); t1.lineLimit = 2; t1.centerAlignText(); tr.addSpacer(); R.addSpacer();
     }
   }
 }
-w.refreshAfterDate = new Date(Date.now() + 20 * 60 * 1000);
+w.url = APP; w.refreshAfterDate = new Date(Date.now() + 20 * 60 * 1000);
 if (config.runsInWidget) Script.setWidget(w); else if (fam === 'small') await w.presentSmall(); else await w.presentMedium();
 Script.complete();
 `;
