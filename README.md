@@ -12,6 +12,10 @@
 - `index.html` — โครงหน้า + CSS
 - `app.js` — logic ทั้งหมด (storage adapter `Store`, การคำนวณ, หน้าจอ)
 - `data.js` — ไอคอน, มาสคอต, พจนานุกรมอาหารตั้งต้น, ฐาน/ไส้สำหรับเมนูผสม
+- `config.js` — ใส่ Supabase URL + publishable key (ไฟล์เดียวที่ต้องแก้เอง)
+- `supabase.js` — supabase-js v2.118 (UMD, ฝังไว้ให้ใช้ offline ได้)
+- `cloud.js` — ซิงก์ขึ้น Supabase + สคริปต์ widget สำหรับ Scriptable
+- `supabase-setup.sql` — SQL ตั้งตาราง (รันครั้งเดียวใน Supabase)
 - `fooddb.js` — พจนานุกรมเมนูไทย ~150 รายการ (ค่าประมาณต่อ 1 ที่) แบ่ง 8 หมวด
 - `sw.js`, `manifest.webmanifest`, `icon-*.png` — ให้ติดตั้งเป็นแอปและเปิด offline ได้
 

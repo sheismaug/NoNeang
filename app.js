@@ -30,7 +30,7 @@ const pencil = (c = '#5E5E5E') => `<svg width="15" height="15" viewBox="0 0 24 2
 const KEY = 'noneang.v1';
 const Store = {
   load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } },
-  save(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { toast('บันทึกลงเครื่องไม่ได้ (พื้นที่เต็มหรือโหมดส่วนตัว)'); } }
+  save(d) { d.updatedAt = new Date().toISOString(); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { toast('บันทึกลงเครื่องไม่ได้ (พื้นที่เต็มหรือโหมดส่วนตัว)'); } if ((typeof Cloud !== 'undefined')) Cloud.queue(); }
 };
 let db = Store.load();
 if (db) { db.rewards = db.rewards || []; db.seenRecap = db.seenRecap || {}; }
@@ -428,11 +428,12 @@ function vMe() {
     <div class="grid3" style="margin:0 16px">${paceBtn('slow', 'สบายๆ', '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17c0-4 3-7 7-7s6 3 6 5-1.5 3-3 3H4z" fill="#8FCB9F" stroke="#1F1F1F" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="14" r="2.6" fill="#FFF3B0" stroke="#1F1F1F" stroke-width="1.2"/></svg>')}${paceBtn('rec', 'แนะนำ', '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="#FF7A59" stroke="#1F1F1F" stroke-width="1.3"/><circle cx="12" cy="12" r="4.5" fill="#FFF4E8" stroke="#1F1F1F" stroke-width="1.2"/><circle cx="12" cy="12" r="1.5" fill="#1F1F1F"/></svg>')}${paceBtn('fast', 'เร่ง', '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L5 14h6l-1 8 8-12h-6z" fill="#FFC75A" stroke="#1F1F1F" stroke-width="1.3" stroke-linejoin="round"/></svg>')}</div>
     <div class="h2">เป้าย่อยต่อวัน</div>
     <div class="grid3" style="margin:0 16px">${[['chicken', proteinTarget() + ' g', 'Protein'], ['veg', FIBER + ' g', 'Fiber'], ['watch', Math.round(p.watchPct * 100) + '%', 'นับจาก Watch']].map(([i, v, l]) => `<div style="background:var(--g);border-radius:20px;padding:12px">${svgI(i, 22)}<b style="display:block;font-size:19px">${v}</b><span class="small mut">${l}</span></div>`).join('')}</div>
+    ${cloudCard()}
     <div class="card" style="padding:4px 0;margin-top:14px">${[['foods', 'รายการอาหารของฉัน'], ['meals', 'มื้อประจำ (เนื้อสัตว์ + ปริมาณ)'], ['profileEdit', 'แก้ข้อมูลร่างกาย']].map(([a, l]) => `<button data-act="sheet" data-type="${a}" style="width:100%;border:none;background:none;min-height:54px;padding:0 16px;display:flex;align-items:center;font-size:15px;font-weight:600;border-bottom:1px solid #F2EEE6;text-align:left"><span style="flex:1">${l}</span>${chev('r', 18)}</button>`).join('')}
       <button data-act="exportJson" style="width:100%;border:none;background:none;min-height:54px;padding:0 16px;display:flex;align-items:center;font-size:15px;font-weight:600;border-bottom:1px solid #F2EEE6"><span style="flex:1;text-align:left">สำรองข้อมูล (JSON)</span>${chev('r', 18)}</button>
       <button data-act="exportCsv" style="width:100%;border:none;background:none;min-height:54px;padding:0 16px;display:flex;align-items:center;font-size:15px;font-weight:600;border-bottom:1px solid #F2EEE6"><span style="flex:1;text-align:left">Export CSV (ไว้วิเคราะห์ต่อ)</span>${chev('r', 18)}</button>
       <label style="width:100%;min-height:54px;padding:0 16px;display:flex;align-items:center;font-size:15px;font-weight:600;cursor:pointer"><span style="flex:1">นำเข้าข้อมูลสำรอง</span><input type="file" accept="application/json" data-input="import" class="sr">${chev('r', 18)}</label></div>
-    <p class="small mut" style="margin:14px 20px;line-height:1.6">ข้อมูลเก็บในเครื่องนี้เท่านั้น ถ้าลบแอปหรือล้างข้อมูลเบราว์เซอร์จะหาย · สำรองไว้เป็นระยะ<br>ค่าโภชนาการเป็นค่าประมาณ ไม่ใช่คำแนะนำทางการแพทย์</p>` + nav();
+    <p class="small mut" style="margin:14px 20px;line-height:1.6">${(typeof Cloud !== 'undefined') && Cloud.user ? 'ข้อมูลอยู่ในเครื่องนี้ + สำรองบน Supabase อัตโนมัติ' : 'ข้อมูลเก็บในเครื่องนี้เท่านั้น ถ้าลบแอปหรือล้างข้อมูลเบราว์เซอร์จะหาย · สำรองไว้เป็นระยะ'}<br>ค่าโภชนาการเป็นค่าประมาณ ไม่ใช่คำแนะนำทางการแพทย์</p>` + nav();
 }
 
 /* onboarding */
@@ -447,7 +448,7 @@ function vOnboard() {
       <div class="grid2"><button class="btn ${o.sex === 'f' ? '' : 'g'}" style="height:50px" data-act="obSet" data-k="sex" data-v="f">หญิง</button><button class="btn ${o.sex === 'm' ? '' : 'g'}" style="height:50px" data-act="obSet" data-k="sex" data-v="m">ชาย</button></div>
       <div class="grid2">${f('วันเกิด', 'birth', '', '', 'date')}${f('ส่วนสูง', 'height', 'cm', '169')}</div>
       <div class="grid2">${f('น้ำหนัก', 'weight', 'kg', '77')}${f('รอบเอว (ไม่บังคับ)', 'waist', 'cm', '')}</div>
-      <div id="ob-err" class="small" style="color:#B3261E;min-height:16px"></div><button class="btn" data-act="obNext">ถัดไป</button></div>`;
+      <div id="ob-err" class="small" style="color:#B3261E;min-height:16px"></div><button class="btn" data-act="obNext">ถัดไป</button>${(typeof Cloud !== 'undefined') && Cloud.enabled ? '<button class="link" data-act="cloudOpen" style="margin-top:4px">เคยใช้แล้ว? เข้าสู่ระบบเพื่อดึงข้อมูลกลับมา</button>' : ''}</div>`;
   if (st === 2) body = head('happy', 'มื้อประจำของเธอ', 'เลือกที่กินบ่อย จะกลายเป็นปุ่มแตะเดียว') + `<div style="margin:18px;display:flex;flex-direction:column;gap:14px">
       <div class="grid2" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">${Object.entries(MEATS).map(([k, m]) => `<button data-act="obMeat" data-v="${k}" style="border:none;border-radius:22px;padding:12px 4px;display:flex;flex-direction:column;align-items:center;gap:6px;background:${o.meats.includes(k) ? '#FFF8D6;box-shadow:0 0 0 2px #FFD000' : 'var(--g)'}">${iconBox(m.icon, 30, 50, 18)}<b style="font-size:14px">${m.name}</b></button>`).join('')}</div>
       <div class="card" style="margin:0;display:flex;flex-direction:column;gap:10px"><span class="small" style="font-weight:700;color:var(--mut)">1 มื้อกินประมาณ</span>
@@ -467,6 +468,12 @@ function sheetHtml() {
   if (s.type === 'celebrate') return celebrateHtml(s);
   const wrap = (inner, center = false) => `<div class="overlay ${center ? 'center' : ''}" data-act="overlay"><div class="${center ? 'modal' : 'sheet'}" role="dialog" aria-modal="true" data-stop="1">${center ? '' : '<span class="handle"></span>'}${inner}</div></div>`;
   const closeBtn = '<button class="back" data-act="close" aria-label="ปิด" style="width:40px;height:40px">' + xIcon + '</button>';
+  if (s.type === 'cloud') return wrap(cloudSheet(s, closeBtn));
+  if (s.type === 'widget') return wrap(widgetSheet(closeBtn));
+  if (s.type === 'cloudPick') return wrap(`<div class="row"><b style="flex:1;font-size:19px">มีข้อมูล 2 ชุด ใช้ชุดไหน?</b></div>
+      <div class="grid2" style="gap:10px"><div style="background:var(--g);border-radius:20px;padding:12px"><b>ในเครื่องนี้</b><div class="small mut">${db.entries.length} รายการ · ล่าสุด ${db.updatedAt ? thDate(db.updatedAt.slice(0, 10)) : '-'}</div></div><div style="background:var(--yll);border-radius:20px;padding:12px"><b>บน cloud</b><div class="small mut">${s.remote.entries.length} รายการ · ล่าสุด ${s.remote.updatedAt ? thDate(s.remote.updatedAt.slice(0, 10)) : '-'}</div></div></div>
+      <span class="small mut">ชุดที่ไม่เลือกจะถูกแทนที่ (cloud เก็บสำเนารายวันไว้ให้)</span>
+      <button class="btn" data-act="pickRemote">ใช้ข้อมูลบน cloud</button><button class="btn w" data-act="pickLocal">ใช้ข้อมูลในเครื่องนี้</button>`);
   if (s.type === 'size') {
     const f = foodById(s.id); const g = s.grams ?? f.def; const q = s.qty ?? 1; const n = nutr(f, { grams: g, qty: q });
     const maxG = Math.max(...f.sizes.map((z) => z[0]));
@@ -776,6 +783,41 @@ function vBrowse() {
     <div style="margin:14px 16px 0"><button class="btn ghost" data-act="addFood" data-name="">+ ไม่มีในนี้ · เพิ่มเมนูของฉัน</button></div>`;
 }
 
+/* --- cloud UI --- */
+const CLOUD_ICON = '<svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.6 4.5 4.5 0 0 0 7 18.5z" fill="#FFFFFF" stroke="#1F1F1F" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 15.5v-5M9.8 12.5l2.2-2.2 2.2 2.2" fill="none" stroke="#1F1F1F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function cloudCard() {
+  if (!(typeof Cloud !== 'undefined')) return '';
+  if (!Cloud.enabled) return `<div class="card row" style="margin-top:14px;background:var(--g);box-shadow:none;gap:12px"><span class="ic" style="width:48px;height:48px;border-radius:16px;background:#fff">${CLOUD_ICON}</span><span style="flex:1"><b style="font-size:15px">สำรองขึ้น cloud</b><span class="small mut" style="display:block;line-height:1.5">ยังไม่ได้ตั้งค่า Supabase ใน config.js</span></span></div>`;
+  if (!Cloud.user) return `<button class="card row" data-act="cloudOpen" style="border:none;width:calc(100% - 32px);margin-top:14px;background:var(--yll);box-shadow:none;gap:12px;text-align:left"><span class="ic" style="width:48px;height:48px;border-radius:16px;background:#fff">${CLOUD_ICON}</span><span style="flex:1"><b style="font-size:15px">เปิดสำรองข้อมูลขึ้น cloud</b><span class="small mut" style="display:block;line-height:1.5">ใส่อีเมล รับรหัส 6 หลัก · ข้อมูลไม่หาย + ใช้ widget ได้</span></span>${chev('r', 16)}</button>`;
+  const st = { ok: ['#E7F4EA', 'สำรองแล้ว'], syncing: ['#FFF3B0', 'กำลังซิงก์…'], error: ['#FFE6E0', 'ซิงก์ไม่สำเร็จ'], offline: ['#F4F4F2', 'ออฟไลน์ · จะซิงก์เมื่อมีเน็ต'], signedout: ['#F4F4F2', '-'] }[Cloud.state] || ['#F4F4F2', Cloud.state];
+  const t = Cloud.lastSync ? pad(Cloud.lastSync.getHours()) + ':' + pad(Cloud.lastSync.getMinutes()) : '-';
+  return `<div class="card" style="margin-top:14px;display:flex;flex-direction:column;gap:10px">
+    <div class="row" style="gap:12px"><span class="ic" style="width:48px;height:48px;border-radius:16px;background:var(--yll)">${CLOUD_ICON}</span><span style="flex:1;min-width:0"><b style="font-size:15px">Cloud backup</b><span class="small mut" style="display:block;overflow:hidden;text-overflow:ellipsis">${esc(Cloud.user.email || '')}</span></span><span class="badge" style="background:${st[0]}">${st[1]}</span></div>
+    <div class="row small mut" style="justify-content:space-between"><span>ซิงก์ล่าสุด ${t}</span><button class="link" data-act="cloudSync" style="font-weight:700;color:var(--ink)">ซิงก์ตอนนี้</button></div>
+    <button class="btn" data-act="widgetOpen" style="height:50px">${svgI('watch', 20)} ตั้งค่า widget หน้าจอ</button>
+    <button class="link" data-act="cloudOut">ออกจากระบบ</button></div>`;
+}
+function cloudSheet(s, closeBtn) {
+  const err = `<div class="small" style="color:#B3261E;min-height:16px;line-height:1.5">${esc(s.err || '')}</div>`;
+  return `<div class="row">${mascot('wave', 56)}<span style="flex:1"><b style="font-size:19px">สำรองข้อมูลขึ้น cloud</b><span class="small mut" style="display:block">ครั้งแรกจะสร้างบัญชีให้อัตโนมัติ</span></span>${closeBtn}</div>
+    <div class="field"><label for="cl-email">อีเมล</label><div class="inp"><input id="cl-email" type="email" inputmode="email" autocomplete="username" data-input="clEmail" placeholder="you@email.com" value="${esc(s.clEmail || '')}"></div></div>
+    <div class="field"><label for="cl-pw">รหัสผ่าน (อย่างน้อย 6 ตัว)</label><div class="inp"><input id="cl-pw" type="password" autocomplete="current-password" data-input="clPw" value="${esc(s.clPw || '')}"></div></div>${err}
+    <button class="btn" data-act="cloudLogin" ${s.busy ? 'disabled style="opacity:.5"' : ''}>${s.busy ? 'กำลังเชื่อม…' : 'เข้าสู่ระบบ / สร้างบัญชี'}</button>
+    <span class="small mut" style="line-height:1.5">ล็อกอินครั้งเดียวต่อเครื่อง · ข้อมูลของเธออ่านได้แค่บัญชีนี้ · จดรหัสผ่านไว้ด้วย ใช้ตอนเปลี่ยนเครื่อง</span>`;
+}
+function widgetSheet(closeBtn) {
+  const step = (n, t, d) => `<div class="row" style="align-items:flex-start;gap:10px"><span class="ic" style="width:28px;height:28px;border-radius:14px;background:var(--y);font-weight:700;font-size:14px;flex-shrink:0">${n}</span><span style="flex:1"><b style="font-size:14px">${t}</b><span class="small mut" style="display:block;line-height:1.5">${d}</span></span></div>`;
+  const prev = `<div style="align-self:center;width:150px;height:150px;border-radius:26px;background:#FFD000;padding:14px;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;box-shadow:0 10px 24px rgba(160,120,0,.25)"><div class="row" style="gap:3px;font-size:12px;font-weight:700">${svgI('flame', 14)}${streakInfo().cur} วัน<span style="flex:1"></span><span style="font-size:10px;font-weight:500;color:#5E4A00">NoNeang</span></div><b style="font-size:32px;line-height:1.1;margin-top:4px">${fmt(Math.max(0, goalOf(todayKey()) - totals(todayKey()).k))}</b><span style="font-size:11px;color:#5E4A00">kcal เหลือวันนี้</span><span style="margin-top:8px;height:8px;border-radius:4px;background:#FFF3B0;display:flex;overflow:hidden"><span style="width:${Math.min(100, totals(todayKey()).p / proteinTarget() * 100)}%;background:#FF9B5E"></span></span><span style="font-size:11px;margin-top:2px">Protein ${Math.round(totals(todayKey()).p)}/${proteinTarget()} g</span></div>`;
+  return `<div class="row"><b style="flex:1;font-size:19px">Widget หน้าจอ</b>${closeBtn}</div>${prev}
+    ${step(1, 'โหลดแอป Scriptable', 'ฟรีใน App Store · ใช้สร้าง widget ด้วยสคริปต์')}
+    ${step(2, 'คัดลอกสคริปต์ของเธอ', 'มีรหัส widget ส่วนตัวอยู่ข้างใน อ่านได้แค่ตัวเลขสรุปของวันนี้')}
+    <button class="btn" data-act="widgetCopy">คัดลอกสคริปต์</button>
+    <textarea id="wg-script" readonly style="display:none;width:100%;height:120px;font-size:11px;border-radius:12px;border:1px solid #E0E0DC;padding:8px;box-sizing:border-box">${esc(Cloud.widgetScript())}</textarea>
+    ${step(3, 'วางใน Scriptable', 'เปิด Scriptable → + → วาง → ตั้งชื่อ NoNeang')}
+    ${step(4, 'เพิ่ม widget', 'กดค้างหน้าจอ → แก้ไข → เพิ่ม widget → Scriptable (เล็ก) → แตะ widget → Script: NoNeang')}
+    <span class="small mut" style="line-height:1.5">widget อัปเดตเองทุก 20–60 นาที (iOS เป็นคนกำหนด) · ตัวเลขมาจากครั้งล่าสุดที่แอปซิงก์</span>`;
+}
+
 /* ================= render ================= */
 const app = document.getElementById('app'); const layer = document.getElementById('layer');
 function render() {
@@ -863,6 +905,21 @@ const A = {
     save(); S.rw = null; render(); toast('ตั้งรางวัลแล้ว · ' + name, null, 'yay'); },
   rwClaim: () => { const r = activeReward(); if (!r) return; r.status = 'done'; r.doneAt = todayKey(); save(); render(); toast('ยินดีด้วย! ได้ ' + r.name + ' แล้ว', null, 'yay'); },
   recapSave: () => recapSave(),
+  cloudOpen: () => openSheet({ type: 'cloud', clEmail: ((typeof Cloud !== 'undefined') && Cloud.user && Cloud.user.email) || '' }),
+  cloudLogin: async () => { const sh = S.sheet; const em = (sh.clEmail || '').trim(); const pw = sh.clPw || '';
+    if (!/^\S+@\S+\.\S+$/.test(em)) { sh.err = 'อีเมลไม่ถูกต้อง'; return renderLayer(); }
+    if (pw.length < 6) { sh.err = 'รหัสผ่านอย่างน้อย 6 ตัว'; return renderLayer(); }
+    sh.busy = true; sh.err = ''; renderLayer();
+    try { await Cloud.login(em, pw); if (S.sheet && S.sheet.type === 'cloud') S.sheet = null; render(); toast('เชื่อม cloud แล้ว ข้อมูลสำรองอัตโนมัติ', null, 'yay'); }
+    catch (e) { sh.busy = false; const m = e && e.message;
+      sh.err = m === 'WRONG_PW' ? 'อีเมลนี้มีบัญชีแล้ว แต่รหัสผ่านไม่ถูก' : m === 'CONFIRM_ON' ? 'Supabase ยังเปิด "Confirm email" อยู่ ไปปิดใน Authentication → Sign In / Providers → Email ก่อนนะ' : 'เชื่อมไม่สำเร็จ: ' + (m || e); renderLayer(); } },
+  cloudOut: () => openSheet({ type: 'confirm', msg: 'ออกจากระบบ? ข้อมูลในเครื่องนี้ยังอยู่ แต่จะไม่สำรองขึ้น cloud จนกว่าจะเข้าใหม่', yes: 'cloudOutYes', label: 'ออกจากระบบ' }),
+  cloudOutYes: async () => { closeSheet(); await Cloud.signOut(); render(); },
+  cloudSync: async () => { await Cloud.push(); await Cloud.pull(); toast(Cloud.state === 'ok' ? 'ซิงก์แล้ว' : 'ซิงก์ไม่สำเร็จ ลองใหม่อีกครั้ง', null, Cloud.state === 'ok' ? 'yay' : 'huh'); },
+  widgetOpen: async () => { if (!Cloud.token) await Cloud.push(); openSheet({ type: 'widget' }); },
+  widgetCopy: async () => { try { await navigator.clipboard.writeText(Cloud.widgetScript()); toast('คัดลอกสคริปต์แล้ว ไปวางใน Scriptable', null, 'yay'); } catch (e) { const t = document.getElementById('wg-script'); if (t) { t.style.display = 'block'; t.select(); } toast('คัดลอกเองจากกล่องด้านล่างนะ', null, 'huh'); } },
+  pickRemote: () => { const r = S.sheet.remote; S.sheet = null; Cloud.adopt(r); },
+  pickLocal: async () => { closeSheet(); db.userId = Cloud.user.id; save(); await Cloud.push(); render(); },
   openRecap: (el) => { S.recapMon = el.dataset.mon; S.recapBack = 'week'; go('recap'); },
   checkSpecial: () => { const d = S.sheet.date; markDay(d, 'special'); },
   editQ: (el) => { const e = db.entries.find((x) => x.id === S.sheet.id); S.sheet.qty = Math.max(0.5, (S.sheet.qty ?? e.qty) + Number(el.dataset.d)); renderLayer(); },
@@ -923,6 +980,7 @@ document.addEventListener('input', (ev) => {
   if (k === 'q') { S.q = el.value; S.comp = null; refreshResults(); return; }
   if (k === 'sizeG') { S.sheet.customG = num(el.value); return; }
   if (k === 'rwName') { S.rw.name = el.value; return; }
+  if (k === 'clEmail' || k === 'clPw') { S.sheet[k] = k === 'clPw' ? el.value : el.value.trim(); return; }
   const [obj, field] = k.split('.');
   if (obj === 'ob') S.ob[field] = el.value; else if (obj === 'af') S.af[field] = el.value; else if (obj === 'wi') S.wi[field] = el.value; else if (obj === 'lb' || obj === 'pe') S.sheet[field] = el.value;
 });
@@ -949,4 +1007,5 @@ else {
   }
 }
 render();
+if ((typeof Cloud !== 'undefined')) Cloud.init();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
