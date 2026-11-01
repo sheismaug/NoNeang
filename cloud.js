@@ -174,10 +174,13 @@ else {
       }
       row.addSpacer(); R.addSpacer(); text(R, '≈ ' + d.sug.k + ' kcal · P +' + d.sug.p + ' g', 10, new Color('#5E4A00'), false);
     } else {
+      const done = !fresh ? false : (left <= 60 || (need === 0 && left < 150));
+      const msg = !fresh ? 'ยังไม่ได้จดวันนี้' : done ? (d.loggedToday ? 'วันนี้ครบแล้ว\nเก่งมาก' : 'วันนี้พอแล้ว\nกดจดครบนะ') : 'ยังกินได้อีก\nเปิดแอปดูว่าเติมอะไรดี';
+      const mood = done ? (evening ? 'mascot-sleepy' : 'mascot-happy') : 'mascot-wave';
       R.addSpacer(); const c = R.addStack(); c.layoutHorizontally(); c.addSpacer();
-      const m2 = await img(evening ? 'mascot-sleepy' : 'mascot-happy'); if (m2) { const mi = c.addImage(m2); mi.imageSize = new Size(48, 48); } c.addSpacer();
+      const m2 = await img(mood); if (m2) { const mi = c.addImage(m2); mi.imageSize = new Size(48, 48); } c.addSpacer();
       R.addSpacer(6); const tr = R.addStack(); tr.layoutHorizontally(); tr.addSpacer();
-      const t1 = text(tr, !fresh ? 'ยังไม่ได้จดวันนี้' : (d.loggedToday ? 'วันนี้ครบแล้ว เก่งมาก' : 'วันนี้พอแล้ว\nกดจดครบนะ'), 15); t1.lineLimit = 2; t1.centerAlignText(); tr.addSpacer(); R.addSpacer();
+      const t1 = text(tr, msg, done || !fresh ? 15 : 13); t1.lineLimit = 2; t1.centerAlignText(); tr.addSpacer(); R.addSpacer();
     }
   }
 }
