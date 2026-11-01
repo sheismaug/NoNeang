@@ -807,14 +807,20 @@ function cloudSheet(s, closeBtn) {
 }
 function widgetSheet(closeBtn) {
   const step = (n, t, d) => `<div class="row" style="align-items:flex-start;gap:10px"><span class="ic" style="width:28px;height:28px;border-radius:14px;background:var(--y);font-weight:700;font-size:14px;flex-shrink:0">${n}</span><span style="flex:1"><b style="font-size:14px">${t}</b><span class="small mut" style="display:block;line-height:1.5">${d}</span></span></div>`;
-  const prev = `<div style="align-self:center;width:150px;height:150px;border-radius:26px;background:#FFD000;padding:14px;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;box-shadow:0 10px 24px rgba(160,120,0,.25)"><div class="row" style="gap:3px;font-size:12px;font-weight:700">${svgI('flame', 14)}${streakInfo().cur} วัน<span style="flex:1"></span><span style="font-size:10px;font-weight:500;color:#5E4A00">NoNeang</span></div><b style="font-size:32px;line-height:1.1;margin-top:4px">${fmt(Math.max(0, goalOf(todayKey()) - totals(todayKey()).k))}</b><span style="font-size:11px;color:#5E4A00">kcal เหลือวันนี้</span><span style="margin-top:8px;height:8px;border-radius:4px;background:#FFF3B0;display:flex;overflow:hidden"><span style="width:${Math.min(100, totals(todayKey()).p / proteinTarget() * 100)}%;background:#FF9B5E"></span></span><span style="font-size:11px;margin-top:2px">Protein ${Math.round(totals(todayKey()).p)}/${proteinTarget()} g</span></div>`;
+  const k = todayKey(); const t = totals(k); const g = goalOf(k); const pT = proteinTarget(); const need = Math.max(0, pT - Math.round(t.p));
+  const prev = `<div style="align-self:center;width:160px;height:160px;border-radius:28px;background:radial-gradient(circle at 92% 6%,#FFE04D 0 52px,#FFD000 53px);padding:8px 10px 10px;box-sizing:border-box;display:flex;flex-direction:column;box-shadow:0 10px 24px rgba(160,120,0,.25)">
+    <div class="row" style="height:44px;justify-content:space-between"><b style="font-size:13px;margin-left:4px">วันนี้เหลือ</b><span style="transform:rotate(8deg)">${mascot('happy', 44)}</span></div>
+    <div style="margin-top:auto;background:#fff;border-radius:20px;padding:9px 11px;display:flex;flex-direction:column;gap:7px">
+      <div class="row" style="gap:8px">${ring(t.k / g, 30, 5, '#FFD000', '#FFF3B0')}<span><b style="font-size:23px">${fmt(Math.max(0, g - t.k))}</b><span style="font-size:12px;font-weight:700;color:#6B6B6B"> kcal</span></span></div>
+      <span style="height:1px;background:#F1EEE6"></span>
+      <div class="row" style="gap:8px">${fillTile('chicken', Math.min(100, t.p / pT * 100), '#FFC4A3', '#FFF1EA').replace('width:46px;height:46px', 'width:30px;height:30px').replace('svg width="28" height="28"', 'svg width="19" height="19"')}<span><b style="font-size:23px">${need || 'ครบ'}</b><span style="font-size:12px;font-weight:700;color:#6B6B6B"> ${need ? 'g' : '✓'}</span></span></div></div></div>`;
   return `<div class="row"><b style="flex:1;font-size:19px">Widget หน้าจอ</b>${closeBtn}</div>${prev}
     ${step(1, 'โหลดแอป Scriptable', 'ฟรีใน App Store · ใช้สร้าง widget ด้วยสคริปต์')}
     ${step(2, 'คัดลอกสคริปต์ของเธอ', 'มีรหัส widget ส่วนตัวอยู่ข้างใน อ่านได้แค่ตัวเลขสรุปของวันนี้')}
     <button class="btn" data-act="widgetCopy">คัดลอกสคริปต์</button>
     <textarea id="wg-script" readonly style="display:none;width:100%;height:120px;font-size:11px;border-radius:12px;border:1px solid #E0E0DC;padding:8px;box-sizing:border-box">${esc(Cloud.widgetScript())}</textarea>
     ${step(3, 'วางใน Scriptable', 'เปิด Scriptable → + → วาง → ตั้งชื่อ NoNeang')}
-    ${step(4, 'เพิ่ม widget', 'กดค้างหน้าจอ → แก้ไข → เพิ่ม widget → Scriptable (เล็ก) → แตะ widget → Script: NoNeang')}
+    ${step(4, 'เพิ่ม widget', 'กดค้างหน้าจอ → แก้ไข → เพิ่ม widget → Scriptable เลือกขนาดเล็กหรือกลาง → แตะ widget → Script: NoNeang · ใช้สคริปต์เดียวกันได้ทั้ง 2 ขนาด')}
     <span class="small mut" style="line-height:1.5">widget อัปเดตเองทุก 20–60 นาที (iOS เป็นคนกำหนด) · ตัวเลขมาจากครั้งล่าสุดที่แอปซิงก์</span>`;
 }
 
