@@ -33,6 +33,7 @@ const Store = {
   save(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { toast('บันทึกลงเครื่องไม่ได้ (พื้นที่เต็มหรือโหมดส่วนตัว)'); } }
 };
 let db = Store.load();
+if (db) { db.rewards = db.rewards || []; db.seenRecap = db.seenRecap || {}; }
 const save = () => Store.save(db);
 
 /* ================= calculations ================= */
@@ -184,7 +185,8 @@ function vToday() {
     : over ? `<div class="card" style="margin-top:10px;background:var(--greenL);box-shadow:none;padding:10px 14px;display:flex;align-items:center;gap:10px">${mascot('calm', 40)}<div><div style="font-size:14px;font-weight:700">ไม่เป็นไร พรุ่งนี้ค่อยว่ากัน</div><div class="small mut">วันเดียวไม่เปลี่ยนแนวโน้มรายสัปดาห์</div></div></div>` : '';
   const meals = mealFoods().map((m) => `<button data-act="logMeal" data-id="${m.id}" aria-label="บันทึก ${esc(m.full)}" style="border:none;border-radius:24px;background:#fff;box-shadow:0 6px 18px rgba(31,31,31,.07);padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:4px">${iconBox(m.icon, 30, 48, 18).replace(/background:[^;"]+/, 'background:#FFF3B0')}<span style="font-size:14px;font-weight:700">${esc(m.name)}</span><span class="small mut">${fmt(m.n.k)} kcal</span></button>`).join('');
   const cnt = entriesOn(k).length;
-  return hero('<span style="font-size:15px;font-weight:600;display:block">' + greet + '</span><span style="font-size:32px">' + esc(db.profile.name || 'สวัสดี') + '</span>', thDate(k), { pb: 120, right: `<span style="transform:rotate(-6deg);display:block">${mascot(mood, 108, chinLevel(), 'มาสคอต NoNeang')}</span>` }) +
+  const stk = streakInfo().cur;
+  return hero('<span style="font-size:15px;font-weight:600;display:block">' + greet + '</span><span style="font-size:32px">' + esc(db.profile.name || 'สวัสดี') + '</span>', thDate(k) + '<br>' + flameChip(stk), { pb: 120, right: `<span style="transform:rotate(-6deg);display:block">${mascot(mood, 108, chinLevel(), 'มาสคอต NoNeang')}</span>` }) +
     `<div class="card" style="margin-top:-104px;position:relative;padding:16px">
       <div class="row" style="gap:14px">
         <div style="position:relative;width:138px;height:138px;flex-shrink:0">${ring(t.k / goal, 138, 16, '#FFD000', '#FFF3B0', over ? (t.k - goal) / goal : 0)}
@@ -196,14 +198,14 @@ function vToday() {
       <div class="row" style="gap:8px;margin-top:12px">
         <button data-act="sheet" data-type="watch" style="flex:1;min-height:40px;border-radius:20px;border:none;background:var(--lav);display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:700"><span class="ic" style="width:26px;height:26px;border-radius:13px;background:#fff">${svgI('watch', 16)}</span>Watch +${watchCredit(k)} ${pencil('#5B4FCF')}</button>
         <span class="small mut" style="min-height:40px;border-radius:20px;background:var(--g);padding:0 12px;display:flex;align-items:center">กินแล้ว ${fmt(t.k)} / ${fmt(goal)}</span>
-      </div></div>` + eq +
+      </div></div>` + eq + todayExtras() +
     `<div class="h2" style="margin-top:16px">กินอะไรมา?</div>
     <div class="grid3" style="margin:0 18px">${meals}</div>
     <div class="grid2" style="margin:12px 18px 0">
       <button class="btn" data-act="nav" data-to="suggest"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c.6 5 2.5 7.4 8 8-5.5.6-7.4 3-8 8-.6-5-2.5-7.4-8-8 5.5-.6 7.4-3 8-8z" fill="#fff" stroke="#1F1F1F" stroke-width="1.4" stroke-linejoin="round"/></svg>เติมอะไรดี?</button>
       <button class="btn w" data-act="nav" data-to="other"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>อย่างอื่น</button>
     </div>
-    <button data-act="openLog" data-date="${k}" style="margin:12px 18px 0;width:calc(100% - 36px);border:none;background:var(--g);border-radius:22px;min-height:54px;padding:0 16px;display:flex;align-items:center;gap:10px;text-align:left"><span style="flex:1;font-size:14px;font-weight:600">${cnt ? 'วันนี้กิน ' + cnt + ' ครั้ง · ' + fmt(t.k) + ' kcal' : 'ยังไม่ได้บันทึกวันนี้'}</span>${chev('r', 18)}</button>` + nav();
+    <button data-act="openLog" data-date="${k}" style="margin:12px 18px 0;width:calc(100% - 36px);border:none;background:var(--g);border-radius:22px;min-height:54px;padding:0 16px;display:flex;align-items:center;gap:10px;text-align:left"><span style="flex:1;font-size:14px;font-weight:600">${cnt ? 'วันนี้กิน ' + cnt + ' ครั้ง · ' + fmt(t.k) + ' kcal' : 'ยังไม่ได้บันทึกวันนี้'}</span>${chev('r', 18)}</button>` + finishDayCard() + nav();
 }
 
 function vSuggest() {
@@ -265,7 +267,13 @@ function parseComposite(q) {
 }
 function searchFoods(q) {
   const s = q.trim().toLowerCase(); if (!s) return [];
-  return db.foods.filter((f) => !f.deleted && (f.name.toLowerCase().includes(s) || (f.aliases || []).some((a) => s.includes(a) || a.includes(s)))).sort((a, b) => (b.uses || 0) - (a.uses || 0));
+  const hit = (f) => f.name.toLowerCase().includes(s) || (f.aliases || []).some((a) => a.includes(s) || (a.length >= 4 && s.startsWith(a)));
+  const mine = db.foods.filter((f) => !f.deleted && hit(f)).sort((a, b) => (b.uses || 0) - (a.uses || 0));
+  const own = new Set(db.foods.map((f) => f.id));
+  const dict = (typeof FOOD_DB === 'undefined' ? [] : FOOD_DB).filter((f) => !own.has(f.id) && hit(f)).map((f) => ({ ...f, _db: true }))
+    .sort((a, b) => (a.name.startsWith(s) ? 0 : 1) - (b.name.startsWith(s) ? 0 : 1) || a.name.length - b.name.length);
+  const pri = (f) => (f.name.toLowerCase().startsWith(s) || (f.aliases || []).some((a) => a.startsWith(s)) ? 0 : 1);
+  return [...mine, ...dict].map((f, i) => ({ f, i })).sort((a, b) => pri(a.f) - pri(b.f) || a.i - b.i).map((x) => x.f);
 }
 function vOther() {
   const q = S.q; const back = S.ctx && S.ctx.ret === 'log' ? 'log' : 'today';
@@ -280,11 +288,12 @@ function otherResults() {
     const now = slotNow(); const recent = db.foods.filter((f) => !f.deleted && f.uses).map((f) => { const sameSlot = db.entries.filter((e) => e.foodId === f.id && e.slot === now).length; const days = f.lastUsed ? (Date.now() - new Date(f.lastUsed)) / 864e5 : 99; return { f, sc: (f.uses || 0) + sameSlot * 2 - days * 0.1, days }; }).filter((x) => x.days <= 30).sort((a, b) => b.sc - a.sc).slice(0, 6);
     const chips = recent.map(({ f }) => { const n = nutr(f); return `<button data-act="quickLog" data-id="${f.id}" style="height:52px;border:none;border-radius:26px;background:#fff;box-shadow:0 4px 14px rgba(31,31,31,.08);padding:0 14px 0 10px;display:inline-flex;align-items:center;gap:8px;font-size:15px;font-weight:600">${iconBox(f.icon, 20, 32)}<span>${esc(f.name)}</span><span class="mut" style="font-size:13px;font-weight:700;${f.src === 'est' ? 'border-bottom:1.5px dashed #BDBDBD' : ''}">${n ? fmt(n.k) : '[ฉลาก]'}</span></button>`; }).join('');
     return `<div style="margin:24px 20px 0;display:flex;justify-content:space-between;align-items:baseline"><span><b style="font-size:18px">กินบ่อยช่วงนี้</b><span class="small mut" style="display:block">โชว์แค่ 6 อย่าง · เรียงตามที่กินบ่อย + เวลานี้</span></span></div>
-      <div style="margin:12px 16px 0;display:flex;flex-wrap:wrap;gap:10px">${chips || '<span class="mut small">ยังไม่มี · บันทึกไปสักพักจะขึ้นตรงนี้</span>'}</div>` + footer('');
+      <div style="margin:12px 16px 0;display:flex;flex-wrap:wrap;gap:10px">${chips || '<span class="mut small">ยังไม่มี · บันทึกไปสักพักจะขึ้นตรงนี้</span>'}</div>
+      <button class="card row" data-act="nav" data-to="browse" style="border:none;width:calc(100% - 32px);margin-top:18px;gap:12px;text-align:left"><span class="row" style="gap:0">${['main', 'drink', 'veg'].map((k, i) => `<span style="${i ? 'margin-left:-10px;' : ''}border:3px solid #fff;border-radius:22px">${iconBox(k, 22, 38)}</span>`).join('')}</span><span style="flex:1"><b style="font-size:15px">ดูเมนูทั้งหมด</b><span class="small mut" style="display:block">${typeof FOOD_DB === 'undefined' ? '' : FOOD_DB.length + ' รายการ · '}จานเดียว ก๋วยเตี๋ยว เซเว่น ขนม เครื่องดื่ม</span></span>${chev('r', 16)}</button>` + footer('');
   }
   const found = searchFoods(q);
   if (found.length) {
-    const rows = found.slice(0, 8).map((f) => { const n = nutr(f); return `<button data-act="${f.kind === 'sized' ? 'sizeSheet' : 'quickLog'}" data-id="${f.id}" style="border:none;background:#fff;width:100%;display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #F2EEE6;text-align:left">${iconBox(f.icon, 30, 50, 17)}<span style="flex:1"><b style="display:block;font-size:16px">${esc(f.name)}</b><span class="small mut">${f.kind === 'sized' ? fmt(f.per100.k) + ' kcal ต่อ 100 g' : (n ? fmt(n.k) + ' kcal · 1 ' + esc(f.unit) : 'ยังไม่มีค่าฉลาก')}${f.src === 'est' ? ' · ค่าประมาณ' : ''}</span></span>${f.kind === 'sized' ? '<span class="badge" style="background:var(--greenL)">เลือกขนาด ›</span>' : '<span class="ic" style="width:40px;height:40px;border-radius:20px;background:var(--y);font-size:20px;font-weight:700">+</span>'}</button>`; }).join('');
+    const rows = found.slice(0, 12).map(foodRow).join('');
     return `<div class="small mut" style="margin:18px 20px 8px;font-weight:700">เจอ ${found.length} รายการ</div><div class="card" style="padding:0;overflow:hidden">${rows}</div>` + footer(q);
   }
   const comp = S.comp && S.comp.src === q ? S.comp : (() => { const c = parseComposite(q); if (c) S.comp = { ...c, src: q }; else S.comp = null; return S.comp; })();
@@ -329,9 +338,10 @@ function vLog() {
     return head + rows; }).join('');
   return topBar('บันทึกการกิน', '', 'today') +
     `<div class="card row" style="padding:6px"><button class="back" data-act="logDay" data-d="-1" ${k <= min ? 'disabled style="opacity:.3"' : ''} aria-label="วันก่อนหน้า">${chev('l', 18)}</button><div style="flex:1;text-align:center"><b style="font-size:17px">${k === todayKey() ? 'วันนี้' : k === addDays(todayKey(), -1) ? 'เมื่อวาน' : thDate(k)}</b><span class="small mut" style="display:block">${thDate(k)} · ย้อนได้ 7 วัน</span></div><button class="back" data-act="logDay" data-d="1" ${k >= todayKey() ? 'disabled style="opacity:.3"' : ''} aria-label="วันถัดไป">${chev('r', 18)}</button></div>
-    <div class="row" style="margin:14px 20px 0;justify-content:space-between"><span class="mut">รวม <b style="color:var(--ink);font-size:18px">${fmt(t.k)}</b> / ${fmt(goal)} kcal</span>${st ? `<span class="badge" style="background:${st === 'done' ? 'var(--greenL)' : 'var(--g)'}">${st === 'done' ? 'ครบแล้ว ✓' : 'ข้าม'}</span>` : ''}</div>
+    <div class="row" style="margin:14px 20px 0;justify-content:space-between"><span class="mut">รวม <b style="color:var(--ink);font-size:18px">${fmt(t.k)}</b> / ${fmt(goal)} kcal</span>${st === 'done' ? '<span class="badge" style="background:var(--greenL)">ครบแล้ว ✓</span>' : st === 'special' ? `<span class="badge" style="background:#FFE8F3">${svgI('cake', 14)} มื้อพิเศษ</span>` : ''}</div>
     <div style="margin:14px 16px 0;position:relative;display:flex;flex-direction:column;gap:10px"><div style="position:absolute;left:16px;top:18px;bottom:18px;width:2px;background:#EFEFEC"></div>${items}</div>
-    ${k !== todayKey() ? `<div style="margin:18px 16px 0"><button class="btn w" data-act="dayDone" data-date="${k}">${k === addDays(todayKey(), -1) ? 'เมื่อวาน' : thDate(k)} บันทึกครบแล้ว ✓</button></div>` : ''}` + nav();
+    ${!LOGGED(k) && entriesOn(k).length ? `<div class="grid2" style="margin:18px 16px 0;gap:8px"><button class="btn" data-act="dayDone" data-date="${k}">จดครบแล้ว ✓</button><button class="btn w" data-act="daySpecial" data-date="${k}" style="font-size:14px">${svgI('cake', 18)} วันมื้อพิเศษ</button></div>` : ''}
+    ${LOGGED(k) ? `<div style="margin:14px 16px 0;text-align:center"><button class="link" data-act="dayUndo" data-date="${k}">ยกเลิกสถานะ "${st === 'special' ? 'มื้อพิเศษ' : 'ครบแล้ว'}"</button></div>` : ''}` + nav();
 }
 
 function vWeek() {
@@ -391,7 +401,7 @@ function vWeek() {
   const wt = bodySeries('weight'); const wtNow = wt.length ? wt[wt.length - 1].weight : p.startWeight;
   const spark = wt.length >= 2 ? (() => { const v = wt.slice(-8).map((b) => b.weight); const mn = Math.min(...v), mx = Math.max(...v) || 1; return `<svg width="120" height="34" viewBox="0 0 120 34" aria-hidden="true" style="margin-left:auto"><polyline points="${v.map((x, i) => (4 + i * 112 / Math.max(1, v.length - 1)).toFixed(1) + ',' + (4 + (mx - x) / Math.max(0.1, mx - mn) * 26).toFixed(1)).join(' ')}" fill="none" stroke="#BDBDBD" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`; })() : '';
   return hero('สัปดาห์นี้', thDate(days[0]) + ' – ' + thDate(days[6]), { pb: 62, right: `<span class="row" style="gap:6px"><button class="back" data-act="weekOff" data-d="-1" aria-label="สัปดาห์ก่อน" style="width:36px;height:36px">${chev('l', 16)}</button><span role="img" aria-label="ตามเป้า ${onT} จาก ${complete.length} วัน" style="background:#fff;border-radius:16px;padding:8px 10px;display:flex;gap:4px;box-shadow:0 6px 14px rgba(140,100,0,.15)">${dots}</span>${S.weekOff < 0 ? `<button class="back" data-act="weekOff" data-d="1" aria-label="สัปดาห์ถัดไป" style="width:36px;height:36px">${chev('r', 16)}</button>` : ''}</span>` }) +
-    chinCard + chart + kcalCard +
+    chinCard + `<button class="card row" data-act="openRecap" data-mon="${mon}" style="border:none;width:calc(100% - 32px);margin-top:12px;gap:12px;text-align:left">${mascot('proud', 46)}<span style="flex:1"><b style="font-size:15px">สรุปสัปดาห์นี้</b><span class="small mut" style="display:block">จดครบ ${days.filter(LOGGED).length}/7 วัน · ดูการ์ด + บันทึกเป็นรูป</span></span>${chev('r', 16)}</button>` + chart + kcalCard +
     `<div class="card row" style="background:var(--g);box-shadow:none"><span><span class="small mut" style="display:block">น้ำหนัก (ดูประกอบ)</span><b style="font-size:16px">${r1(wtNow)} kg</b> ${wtNow < p.startWeight ? `<span class="small" style="font-weight:600;color:#2F6B45">▼ ${r1(p.startWeight - wtNow)}</span>` : ''}</span>${spark}</div>
     <div style="margin:12px 16px 0"><button class="btn" data-act="nav" data-to="weighin">วัดรอบเอว + ชั่งน้ำหนัก</button></div>` + nav();
 }
@@ -454,6 +464,7 @@ function vOnboard() {
 /* ================= sheets ================= */
 function sheetHtml() {
   const s = S.sheet; if (!s) return '';
+  if (s.type === 'celebrate') return celebrateHtml(s);
   const wrap = (inner, center = false) => `<div class="overlay ${center ? 'center' : ''}" data-act="overlay"><div class="${center ? 'modal' : 'sheet'}" role="dialog" aria-modal="true" data-stop="1">${center ? '' : '<span class="handle"></span>'}${inner}</div></div>`;
   const closeBtn = '<button class="back" data-act="close" aria-label="ปิด" style="width:40px;height:40px">' + xIcon + '</button>';
   if (s.type === 'size') {
@@ -497,7 +508,7 @@ function sheetHtml() {
     return wrap(`<div style="background:var(--y);padding:24px 20px 20px;display:flex;flex-direction:column;align-items:center;gap:8px">${mascot('happy', 90)}<b style="font-size:21px">เมื่อวานบันทึกครบไหม?</b></div>
       <div style="padding:16px 18px 20px;display:flex;flex-direction:column;gap:12px"><div style="background:var(--g);border-radius:20px;padding:12px 14px"><div class="row small mut" style="justify-content:space-between"><span>${thDate(y)}</span><span><b style="color:var(--ink)">${fmt(t.k)}</b> / ${fmt(goalOf(y))} kcal</span></div>
         <div class="grid3" style="grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin-top:8px;font-size:11px;font-weight:600;text-align:center">${SLOTS.map((x) => `<span style="border-radius:10px;padding:6px 0;background:${has(x.id) ? '#FFF3B0' : '#fff'};color:${has(x.id) ? 'var(--ink)' : 'var(--mut)'}">${x.name} ${has(x.id) ? '✓' : '–'}</span>`).join('')}</div></div>
-        <button class="btn" data-act="checkFill">ยังไม่ครบ · เติมย้อนหลัง</button><button class="btn w" data-act="checkDone">ครบแล้ว กินแค่นี้จริง</button><button class="link" data-act="checkSkip">ไม่ครบ ข้ามไป (ไม่นับเข้าค่าเฉลี่ย)</button></div>`, true);
+        <button class="btn" data-act="checkFill">ยังไม่ครบ · เติมย้อนหลัง</button><button class="btn w" data-act="checkDone">ครบแล้ว กินแค่นี้จริง</button><button class="btn w" data-act="checkSpecial" style="font-size:14px">${svgI('cake', 18)} วันมื้อพิเศษ · จดคร่าวๆ แล้ว</button></div>`, true);
   }
   if (s.type === 'formula') {
     const p = db.profile; const tb = targetBase(p);
@@ -538,12 +549,239 @@ function sheetHtml() {
   return '';
 }
 
+/* ================= habits: streak · stickers · reward · recap ================= */
+const LOGGED = (k) => db.dayStatus[k] === 'done' || db.dayStatus[k] === 'special';
+function streakInfo() {
+  const today = todayKey(); let d = LOGGED(today) ? today : addDays(today, -1); let cur = 0;
+  while (LOGGED(d)) { cur++; d = addDays(d, -1); }
+  const keys = Object.keys(db.dayStatus).filter(LOGGED).sort(); let best = 0, run = 0, prev = null;
+  keys.forEach((k) => { run = prev && addDays(prev, 1) === k ? run + 1 : 1; best = Math.max(best, run); prev = k; });
+  return { cur, best: Math.max(best, cur) };
+}
+const faceDot = (px, bg = '#FFE680') => `<span class="ic" style="width:${px}px;height:${px}px;border-radius:${px / 2}px;background:${bg}">${mascot('happy', Math.round(px * 0.84))}</span>`;
+const cakeDot = (px) => `<span class="ic" style="width:${px}px;height:${px}px;border-radius:${px / 2}px;background:#FFE8F3">${svgI('cake', Math.round(px * 0.6))}</span>`;
+function dayDot(k, px = 38) {
+  const today = todayKey(); const st = db.dayStatus[k];
+  if (st === 'special') return cakeDot(px);
+  if (st === 'done') return faceDot(px);
+  if (k === today) return `<span class="ic" style="width:${px}px;height:${px}px;border-radius:${px / 2}px;border:2.5px solid #1F1F1F;box-sizing:border-box;font-size:12px;font-weight:700">วันนี้</span>`;
+  if (k > today || k < db.profile.startDate) return `<span class="ic" style="width:${px}px;height:${px}px;font-size:13px;color:#9A9A96">${parseKey(k).getDate()}</span>`;
+  return `<span class="ic" style="width:${px}px;height:${px}px"><span style="width:10px;height:10px;border-radius:5px;background:#DDDDD8"></span></span>`;
+}
+const flameChip = (n) => `<button data-act="nav" data-to="stickers" aria-label="จดติดต่อกัน ${n} วัน · ดูแผ่นสติกเกอร์" style="border:none;background:#fff;border-radius:20px;padding:4px 10px 4px 4px;display:inline-flex;align-items:center;gap:4px;box-shadow:0 4px 12px rgba(160,120,0,.18);margin-top:6px"><span class="ic" style="width:26px;height:26px;border-radius:13px;background:#FFE6E0">${svgI('flame', 18)}</span><b style="font-size:15px">${n}</b><span style="font-size:12px;font-weight:600">วัน</span></button>`;
+
+function markDay(k, status) { db.dayStatus[k] = status; save(); S.toast = null; clearTimeout(toastTimer); S.sheet = { type: 'celebrate', date: k }; render(); }
+
+/* --- today helpers --- */
+function sameAsYesterday() {
+  const k = todayKey(); const slot = slotNow(); const y = addDays(k, -1);
+  if (entriesOn(k).some((e) => e.slot === slot)) return null;
+  const es = entriesOn(y).filter((e) => e.slot === slot); if (!es.length) return null;
+  return { slot, es, k: es.reduce((a, e) => a + e.k, 0), p: es.reduce((a, e) => a + e.p, 0), f: es.reduce((a, e) => a + e.f, 0) };
+}
+function slotFavs(exclude = []) {
+  const slot = slotNow(); const since = addDays(todayKey(), -30); const cnt = {};
+  db.entries.filter((e) => e.slot === slot && e.date >= since && !String(e.foodId).startsWith('meal')).forEach((e) => { cnt[e.foodId] = (cnt[e.foodId] || 0) + 1; });
+  return Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([id]) => foodById(id)).filter((f) => f && !f.deleted && !exclude.includes(f.id) && nutr(f)).slice(0, 3);
+}
+function todayExtras() {
+  const k = todayKey(); const slotName = SLOTS.find((s) => s.id === slotNow()).name; let html = '';
+  const same = sameAsYesterday();
+  if (same) {
+    const ic = same.es.slice(0, 3).map((e, i) => `<span style="${i ? 'margin-left:-12px;' : ''}transform:rotate(${i % 2 ? 6 : -6}deg);border:3px solid #FFF8D6;border-radius:20px">${iconBox(e.icon, 26, 44, 16)}</span>`).join('');
+    html += `<div class="card" style="margin-top:12px;background:var(--yll);box-shadow:none;display:flex;flex-direction:column;gap:10px">
+      <div class="row" style="gap:8px"><span class="ic" style="width:30px;height:30px;border-radius:15px;background:#fff">${slotSvg(same.slot, 20)}</span><b style="flex:1;font-size:15px">${slotName}เมื่อวานกินแบบนี้</b></div>
+      <div class="row" style="gap:10px"><span class="row" style="gap:0">${ic}</span><span style="flex:1;min-width:0"><b style="display:block;font-size:14px;line-height:1.35">${esc(same.es.map((e) => e.name).join(' + '))}</b><span class="small mut">${fmt(same.k)} kcal · P ${Math.round(same.p)} g · Fb ${Math.round(same.f)} g</span></span></div>
+      <div class="grid2" style="grid-template-columns:1.4fr 1fr;gap:8px"><button class="btn" data-act="sameLog" style="height:50px">✓ กินเหมือนเดิม</button><button class="btn w" data-act="nav" data-to="other" style="height:50px;font-size:14px">ปรับนิดหน่อย</button></div></div>`;
+  }
+  const favs = slotFavs([...(same ? same.es.map((e) => e.foodId) : []), ...entriesOn(k).filter((e) => e.slot === slotNow()).map((e) => e.foodId)]);
+  if (favs.length) html += `<div class="row" style="margin:14px 20px 0;align-items:baseline"><b style="flex:1;font-size:16px">ของประจำช่วง${slotName}</b><span class="small mut">แตะ = บันทึกเลย</span></div>
+    <div class="grid3" style="margin:10px 18px 0;gap:10px">${favs.map((f) => { const n = nutr(f); return `<button data-act="quickLog" data-id="${f.id}" aria-label="บันทึก ${esc(f.name)}" style="border:none;border-radius:22px;background:#fff;box-shadow:0 6px 18px rgba(31,31,31,.07);padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative">${iconBox(f.icon, 28, 46, 16)}<span style="font-size:13px;font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px">${esc(f.name)}</span><span class="small mut" style="font-size:11px">${fmt(n.k)} kcal</span><span class="ic" style="position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:11px;background:var(--y);font-size:14px;font-weight:700">+</span></button>`; }).join('')}</div>`;
+  return html;
+}
+function finishDayCard() {
+  const k = todayKey(); const h = new Date().getHours();
+  if (LOGGED(k)) return `<div class="card row" style="margin-top:12px;background:var(--yll);box-shadow:none;gap:10px">${db.dayStatus[k] === 'special' ? cakeDot(40) : faceDot(40)}<span style="flex:1"><b style="font-size:14px">วันนี้จดครบแล้ว</b><span class="small mut" style="display:block">ได้สติกเกอร์แล้ว · กินเพิ่มก็บันทึกต่อได้</span></span></div>`;
+  if (!entriesOn(k).length || (h < 17 && h >= 4)) return '';
+  return `<div class="card" style="margin-top:12px;display:flex;flex-direction:column;gap:10px"><div class="row" style="gap:10px">${mascot('plate', 46)}<span style="flex:1"><b style="font-size:15px">วันนี้จดครบแล้วหรือยัง?</b><span class="small mut" style="display:block">กดแล้วได้สติกเกอร์ ไฟไม่ดับ</span></span></div>
+    <div class="grid2" style="gap:8px"><button class="btn" data-act="markToday" data-v="done" style="height:48px">ครบแล้ว</button><button class="btn w" data-act="markToday" data-v="special" style="height:48px;font-size:14px">${svgI('cake', 18)} วันมื้อพิเศษ</button></div></div>`;
+}
+
+/* --- celebrate --- */
+function weekRow(anchor, px = 38) {
+  const mon = mondayOf(anchor); const names = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'];
+  return `<div class="row" style="justify-content:space-between">${[...Array(7)].map((_, i) => { const d = addDays(mon, i); return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px">${dayDot(d, px)}<span style="font-size:11px;font-weight:600;color:var(--mut)">${names[i]}</span></div>`; }).join('')}</div>`;
+}
+function celebrateHtml(s) {
+  const st = streakInfo(); const special = db.dayStatus[s.date] === 'special'; const isToday = s.date === todayKey();
+  const conf = '<svg width="100%" height="100%" viewBox="0 0 390 560" preserveAspectRatio="none" style="position:absolute;inset:0" aria-hidden="true"><circle cx="350" cy="40" r="80" fill="#FFE04D"/><circle cx="20" cy="300" r="56" fill="#FFE04D"/><rect x="60" y="90" width="4" height="16" fill="#FF7A59" transform="rotate(20 62 98)"/><rect x="320" y="250" width="4" height="16" fill="#8FCB9F" transform="rotate(-30 322 258)"/><rect x="250" y="110" width="4" height="14" fill="#fff" transform="rotate(-15 252 117)"/><circle cx="300" cy="170" r="5" fill="#FF9C85"/><circle cx="80" cy="200" r="4" fill="#fff"/></svg>';
+  return `<div class="overlay center" data-act="overlay"><div class="modal" role="dialog" aria-modal="true" data-stop="1" style="background:var(--y);padding:0;overflow:hidden;position:relative">${conf}
+    <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:26px 20px 0">
+      <span style="font-size:14px;font-weight:700;background:#fff;border-radius:16px;padding:6px 14px">${special ? 'วันมื้อพิเศษ ก็นับนะ' : (isToday ? 'จดครบวันนี้แล้ว!' : 'จด' + thDate(s.date) + 'ครบแล้ว!')}</span>
+      <span class="ic" style="margin-top:8px;width:150px;height:150px;border-radius:75px;background:#fff;box-shadow:0 14px 30px rgba(160,120,0,.28);transform:rotate(-6deg)">${special ? `<span style="position:relative">${mascot('yay', 128)}<span style="position:absolute;right:-8px;bottom:0">${svgI('cake', 44)}</span></span>` : mascot('yay', 128)}</span>
+      <b style="margin-top:8px;font-size:23px">ได้สติกเกอร์อีกใบ</b>
+      <span style="font-size:13px;font-weight:600;text-align:center;line-height:1.5">นับแค่ว่าจดครบ กินเกินเป้าก็ได้นะ</span></div>
+    <div style="position:relative;margin:16px 14px 0;background:#fff;border-radius:26px;padding:14px;display:flex;flex-direction:column;gap:12px">
+      <div class="row" style="gap:10px"><span class="ic" style="width:48px;height:48px;border-radius:16px;background:#FFE6E0">${svgI('flame', 30)}</span><span style="flex:1"><b style="font-size:22px;display:block;line-height:1.1">${st.cur} วันติด</b><span class="small mut">${st.cur >= st.best ? 'สถิติใหม่ของเธอ!' : 'ยาวสุด ' + st.best + ' วัน · อีก ' + (st.best - st.cur + 1) + ' วันทำลายสถิติ'}</span></span></div>
+      ${weekRow(s.date, 36)}</div>
+    <div class="grid2" style="position:relative;margin:14px 14px 18px;gap:10px"><button class="btn" data-act="celebSheet" style="background:rgba(255,255,255,.55);box-shadow:none">ดูแผ่นสติกเกอร์</button><button class="btn" data-act="close" style="background:#fff">เก็บเลย</button></div>
+  </div></div>`;
+}
+
+/* --- sticker month --- */
+function vStickers() {
+  const today = todayKey(); const ym = S.mon || today.slice(0, 7); const [Y, M] = ym.split('-').map(Number);
+  const first = `${ym}-01`; const nDays = new Date(Y, M, 0).getDate(); const off = (parseKey(first).getDay() + 6) % 7;
+  const cells = [...Array(off)].map(() => '<span></span>').join('') + [...Array(nDays)].map((_, i) => { const d = `${ym}-${pad(i + 1)}`; const past = d < today && d >= db.profile.startDate;
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:1px">${dayDot(d, 38)}<span style="font-size:10px;color:var(--mut)">${past || LOGGED(d) ? i + 1 : '&#160;'}</span></div>`; }).join('');
+  const inMon = Object.keys(db.dayStatus).filter((d) => d.startsWith(ym));
+  const logged = inMon.filter(LOGGED).length; const special = inMon.filter((d) => db.dayStatus[d] === 'special').length; const st = streakInfo();
+  const prevYm = (() => { const d = new Date(Y, M - 2, 1); return d.getFullYear() + '-' + pad(d.getMonth() + 1); })(); const nextYm = (() => { const d = new Date(Y, M, 1); return d.getFullYear() + '-' + pad(d.getMonth() + 1); })();
+  const canPrev = prevYm >= db.profile.startDate.slice(0, 7); const canNext = nextYm <= today.slice(0, 7);
+  const tile = (bg, ic, v, l) => `<div style="background:${bg};border-radius:20px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span class="ic" style="width:30px;height:30px;border-radius:15px;background:#fff">${ic}</span><b style="font-size:20px">${v}</b><span style="font-size:11px;color:var(--mut)">${l}</span></div>`;
+  return topBar('สติกเกอร์ ' + TH_MON[M - 1], 'จดครบ 1 วัน = สติกเกอร์ 1 ใบ', 'today') +
+    `<div class="grid3" style="margin:4px 16px 0;gap:8px">${tile('#FFF3B0', mascot('happy', 26), logged, 'วันที่จดครบ')}${tile('#FFE6E0', svgI('flame', 20), st.best, 'ติดยาวสุด')}${tile('#FFE8F3', svgI('cake', 18), special, 'วันมื้อพิเศษ')}</div>
+    <div class="card" style="padding:12px 8px 14px;display:flex;flex-direction:column;gap:10px">
+      <div class="row" style="padding:0 6px"><button class="back" data-act="mon" data-v="${prevYm}" ${canPrev ? '' : 'disabled style="opacity:.3"'} aria-label="เดือนก่อน" style="width:36px;height:36px">${chev('l', 16)}</button><b style="flex:1;text-align:center">${TH_MON[M - 1]} ${Y + 543}</b><button class="back" data-act="mon" data-v="${nextYm}" ${canNext ? '' : 'disabled style="opacity:.3"'} aria-label="เดือนถัดไป" style="width:36px;height:36px">${chev('r', 16)}</button></div>
+      <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));font-size:12px;font-weight:700;color:var(--mut);text-align:center">${['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'].map((x) => `<span>${x}</span>`).join('')}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));row-gap:8px">${cells}</div></div>
+    ${rewardMini()}
+    <div class="row small mut" style="margin:12px 22px 0;gap:14px;font-size:12px;flex-wrap:wrap"><span class="row" style="gap:5px">${faceDot(18)}จดครบ</span><span class="row" style="gap:5px">${cakeDot(18)}มื้อพิเศษ</span><span class="row" style="gap:5px"><span style="width:9px;height:9px;border-radius:5px;background:#DDDDD8"></span>ไม่ได้จด (ไฟดับ)</span></div>` + nav();
+}
+
+/* --- reward --- */
+const RW_TYPES = { waist: { name: 'รอบเอวลด', unit: 'cm', step: 0.5, min: 0.5, max: 20, def: 4, icon: 'tape' }, logged: { name: 'จดครบ', unit: 'วัน', step: 5, min: 5, max: 120, def: 30, icon: 'flame' }, protein: { name: 'Protein ถึงเป้า', unit: 'วัน', step: 5, min: 5, max: 120, def: 20, icon: 'chicken' } };
+const RW_ICONS = [['pants', 'เสื้อผ้า'], ['spa', 'นวด/สปา'], ['shoe', 'รองเท้า'], ['plane', 'เที่ยว'], ['gift', 'อื่นๆ']];
+const activeReward = () => (db.rewards || []).find((r) => r.status === 'active');
+const latestWaist = (upTo) => { const s = bodySeries('waist').filter((b) => !upTo || b.date <= upTo); return s.length ? s[s.length - 1].waist : null; };
+function rewardProgress(r) {
+  let v = 0;
+  if (r.type === 'waist') { const cur = latestWaist(); v = r.start != null && cur != null ? Math.max(0, r.start - cur) : 0; }
+  else if (r.type === 'logged') v = Object.keys(db.dayStatus).filter((d) => d >= r.startDate && LOGGED(d)).length;
+  else { const pT = proteinTarget(); const ds = [...new Set(db.entries.filter((e) => e.date >= r.startDate).map((e) => e.date))]; v = ds.filter((d) => totals(d).p >= pT).length; }
+  return { v: r1(v), pct: Math.min(1, v / r.target), done: v >= r.target };
+}
+function rewardMini() {
+  const r = activeReward();
+  if (!r) return `<button data-act="nav" data-to="reward" class="card row" style="border:none;width:calc(100% - 32px);background:var(--yll);box-shadow:none;gap:12px;text-align:left"><span class="ic" style="width:50px;height:50px;border-radius:18px;background:#fff">${svgI('gift', 32)}</span><span style="flex:1"><b style="font-size:15px">ตั้งรางวัลให้ตัวเอง</b><span class="small mut" style="display:block">เช่น เอวลด 4 cm → ซื้อกางเกงตัวใหม่</span></span>${chev('r', 16)}</button>`;
+  const pr = rewardProgress(r); const T = RW_TYPES[r.type];
+  return `<button data-act="nav" data-to="reward" class="card row" style="border:none;width:calc(100% - 32px);background:var(--yll);box-shadow:none;gap:12px;text-align:left"><span class="ic" style="width:50px;height:50px;border-radius:18px;background:#fff;transform:rotate(-5deg)">${svgI(r.icon, 34)}</span><span style="flex:1;display:flex;flex-direction:column;gap:5px;min-width:0"><b style="font-size:15px">${esc(r.name)}</b><span class="small mut">${pr.done ? 'ถึงเป้าแล้ว! ไปรับรางวัลได้เลย' : T.name + ' ' + pr.v + ' จาก ' + r.target + ' ' + T.unit}</span><span style="height:8px;border-radius:4px;background:#fff;display:flex;overflow:hidden"><span style="width:${pr.pct * 100}%;background:#FFB547"></span></span></span>${chev('r', 16)}</button>`;
+}
+function vReward() {
+  const r = activeReward(); const f = S.rw || (S.rw = { type: 'waist', target: RW_TYPES.waist.def, icon: 'pants', name: '' }); const T = RW_TYPES[f.type];
+  let cur = '';
+  if (r) { const pr = rewardProgress(r); const RT = RW_TYPES[r.type];
+    cur = `<div class="card" style="background:var(--y);box-shadow:none;display:flex;flex-direction:column;gap:10px;position:relative;overflow:hidden"><svg width="140" height="140" viewBox="0 0 140 140" style="position:absolute;right:-40px;top:-50px" aria-hidden="true"><circle cx="70" cy="70" r="70" fill="#FFE04D"/></svg>
+      <span style="font-size:12px;font-weight:700;position:relative">${pr.done ? 'ถึงเป้าแล้ว!' : 'กำลังไปถึง'}</span>
+      <div class="row" style="gap:12px;position:relative"><span class="ic" style="width:68px;height:68px;border-radius:24px;background:#fff;transform:rotate(-5deg)">${svgI(r.icon, 44)}</span><span style="flex:1"><b style="font-size:20px;line-height:1.2;display:block">${esc(r.name)}</b><span style="font-size:13px;font-weight:600">เมื่อ${RT.name} ${r.target} ${RT.unit}</span></span></div>
+      <div style="position:relative;background:#fff;border-radius:18px;padding:10px 12px 12px;display:flex;flex-direction:column;gap:10px">
+        <div class="row" style="gap:8px">${svgI(RT.icon, 20)}<span style="flex:1;font-size:13px"><b>${pr.v}</b> จาก ${r.target} ${RT.unit}</span><span class="small mut">${pr.done ? 'ครบแล้ว' : 'อีก ' + r1(r.target - pr.v)}</span></div>
+        <div style="height:12px;border-radius:6px;background:#FFF3B0;position:relative"><span style="position:absolute;left:0;top:0;bottom:0;width:${pr.pct * 100}%;border-radius:6px;background:#FFB547"></span><span class="ic" style="position:absolute;left:max(-4px,calc(${pr.pct * 100}% - 13px));top:-7px;width:26px;height:26px;border-radius:13px;background:#fff;border:2px solid #1F1F1F;box-sizing:border-box">${mascot('happy', 22)}</span></div>
+        ${r.type === 'waist' && r.start == null ? '<span class="small mut">ยังไม่มีรอบเอวตั้งต้น · วัดรอบเอวครั้งถัดไปจะเริ่มนับ</span>' : ''}</div>
+      ${pr.done ? '<button class="btn" data-act="rwClaim" style="background:#fff;position:relative">ได้รับรางวัลแล้ว ✓</button>' : ''}</div>`; }
+  else cur = `<div class="card row" style="background:var(--yll);box-shadow:none;gap:12px">${mascot('wave', 64)}<span style="flex:1"><b style="font-size:16px">ยังไม่มีรางวัล</b><span class="small mut" style="display:block;line-height:1.5">ตั้งเป้าที่อยากทำ + ของที่อยากได้ แอปจะนับให้เอง</span></span></div>`;
+  const done = (db.rewards || []).filter((x) => x.status === 'done');
+  const typeBtn = (k) => { const t = RW_TYPES[k]; const on = f.type === k; return `<button data-act="rwType" data-v="${k}" style="border:none;border-radius:20px;padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;background:${on ? '#FFD000' : 'var(--g)'};font-weight:${on ? 700 : 500}">${svgI(t.icon, 26)}${t.name}</button>`; };
+  const iconBtn = ([k, l]) => `<button data-act="rwIcon" data-v="${k}" style="border:none;border-radius:18px;padding:8px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;background:${f.icon === k ? '#fff;box-shadow:0 0 0 3px #FFD000' : 'var(--g)'}">${svgI(k, 28)}${l}</button>`;
+  return topBar('รางวัลของฉัน', '', S.rwBack || 'stickers') + cur +
+    `<div class="h2" style="margin-top:18px">${r ? 'เปลี่ยนรางวัล' : 'ตั้งรางวัลใหม่'}</div>
+    <div style="margin:0 16px;display:flex;flex-direction:column;gap:8px"><b style="font-size:13px">1 · เป้า</b>
+      <div class="grid3" style="gap:8px">${Object.keys(RW_TYPES).map(typeBtn).join('')}</div>
+      <div class="row" style="background:var(--g);border-radius:20px;padding:6px 6px 6px 14px;gap:8px"><span style="flex:1;font-size:14px">${T.name}</span><button class="step" data-act="rwStep" data-d="-1" aria-label="ลด" style="background:#fff">−</button><b style="font-size:20px;min-width:70px;text-align:center">${f.target} ${T.unit}</b><button class="step" data-act="rwStep" data-d="1" aria-label="เพิ่ม" style="background:#fff">+</button></div>
+      <b style="font-size:13px;margin-top:6px">2 · รางวัล</b>
+      <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px">${RW_ICONS.map(iconBtn).join('')}</div>
+      <label class="small mut" for="rw-name">ชื่อรางวัล</label><div class="inp"><input id="rw-name" data-input="rwName" placeholder="เช่น กางเกงยีนส์ตัวใหม่" value="${esc(f.name)}" maxlength="40"></div>
+      <div id="rw-err" class="small" style="color:#B3261E;min-height:16px"></div>
+      <button class="btn" data-act="rwSave">${r ? 'เปลี่ยนเป็นรางวัลนี้' : 'ตั้งเป็นรางวัล'}</button></div>
+    ${done.length ? `<div class="h2" style="margin-top:18px">ได้มาแล้ว</div><div style="margin:0 16px;display:flex;flex-direction:column;gap:8px">${done.slice(-5).reverse().map((x) => `<div class="row" style="background:var(--g);border-radius:18px;padding:8px 12px;gap:10px">${svgI(x.icon, 26)}<span style="flex:1;font-size:14px"><b>${esc(x.name)}</b> <span class="small mut">· ${thDate(x.doneAt)}</span></span>✓</div>`).join('')}</div>` : ''}` + nav();
+}
+
+/* --- sunday recap (single SVG: shown inline and saved as PNG) --- */
+function recapData(mon) {
+  const days = [...Array(7)].map((_, i) => addDays(mon, i)); const pT = proteinTarget();
+  const prot = days.map((d) => ({ d, v: entriesOn(d).length ? Math.round(totals(d).p) : null, special: db.dayStatus[d] === 'special' }));
+  const logged = days.filter(LOGGED).length; const protDays = prot.filter((x) => x.v != null && x.v >= pT).length;
+  const wEnd = latestWaist(days[6]); const wStart = latestWaist(addDays(mon, -1));
+  const waist = wEnd != null && wStart != null && bodySeries('waist').some((b) => b.date >= mon && b.date <= days[6]) ? r1(wEnd - wStart) : null;
+  return { mon, days, prot, logged, protDays, waist, pT };
+}
+function recapSVG(R) {
+  const W = 354, H = 560; const F = "font-family=\"Google Sans, Anuphan, sans-serif\"";
+  const head = R.logged >= 6 ? ['สัปดาห์นี้', 'เก่งมาก!'] : R.logged >= 4 ? ['สัปดาห์นี้', 'ไปได้สวย!'] : ['สัปดาห์หน้า', 'เอาใหม่นะ'];
+  const mood = R.logged >= 6 ? 'proud' : R.logged >= 4 ? 'yay' : 'calm';
+  const nest = (svg, x, y) => svg.replace('<svg ', `<svg x="${x}" y="${y}" `);
+  const stat = (x, icon, bg, num, unit, label) => `<rect x="${x + 22}" y="216" width="46" height="46" rx="16" fill="${bg}"/>${nest(icon, x + 29, 223)}
+    <text x="${x + 45}" y="294" text-anchor="middle" ${F} font-size="28" font-weight="700" fill="#1F1F1F">${num}<tspan font-size="13" font-weight="600" fill="#5E5E5E">${unit}</tspan></text>
+    <text x="${x + 45}" y="314" text-anchor="middle" ${F} font-size="12" font-weight="600" fill="#5E5E5E">${label}</text>`;
+  const icon = (k, px) => `<svg width="${px}" height="${px}" viewBox="0 0 24 24">${ICONS[k][1]}</svg>`;
+  // bars
+  const cx0 = 34, cw = (W - 68) / 7, base = 488, Hb = 96, MAXV = Math.max(R.pT * 1.15, ...R.prot.map((x) => x.v || 0));
+  const gy = base - R.pT / MAXV * Hb; const names = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'];
+  const bars = R.prot.map((x, i) => { const cx = cx0 + cw * i + cw / 2; let s = '';
+    if (x.v == null) s = `<circle cx="${cx}" cy="${base - 4}" r="4" fill="#DDDDD8"/>`;
+    else if (x.v >= R.pT) { const h = Math.max(8, x.v / MAXV * Hb); s = `<rect x="${cx - 13}" y="${base - h}" width="26" height="${h}" rx="12" fill="#FFD000"/>` + (x.special ? '' : `<path transform="translate(${cx} ${base - h - 12})" d="M0 -7 c.8 4.4 2.7 6.3 7 7 -4.3.8 -6.2 2.7 -7 7 -.8 -4.3 -2.7 -6.2 -7 -7 4.3 -.7 6.2 -2.6 7 -7z" fill="#FFD000" stroke="#1F1F1F" stroke-width="1.6" stroke-linejoin="round"/>`); }
+    else { const h = Math.max(6, x.v / MAXV * Hb); s = `<rect x="${cx - 13}" y="${base - h}" width="26" height="${h}" rx="8" fill="#E4E4DF"/><rect x="${cx - 12}" y="${gy}" width="24" height="${base - h - gy}" rx="10" fill="none" stroke="#C9C9C3" stroke-width="1.6" stroke-dasharray="4 3"/>` + (base - h - gy > 16 ? `<text x="${cx}" y="${(gy + base - h) / 2 + 4}" text-anchor="middle" ${F} font-size="10" font-weight="700" fill="#5E5E5E">−${R.pT - x.v}</text>` : ''); }
+    if (x.special) { const top = x.v == null ? base - 10 : base - Math.max(x.v, x.v >= R.pT ? x.v : R.pT) / MAXV * Hb; s += nest(icon('cake', 20), cx - 10, top - 24); }
+    return s + `<text x="${cx}" y="${base + 20}" text-anchor="middle" ${F} font-size="12" font-weight="700" fill="${x.v != null && x.v >= R.pT ? '#1F1F1F' : '#5E5E5E'}">${names[i]}</text>`; }).join('');
+  const waistTxt = R.waist == null ? '–' : (R.waist > 0 ? '+' : R.waist < 0 ? '−' : '') + Math.abs(R.waist);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="สรุปสัปดาห์ จดครบ ${R.logged} จาก 7 วัน protein ถึงเป้า ${R.protDays} วัน">
+    <rect width="${W}" height="${H}" rx="32" fill="#FFD000"/><clipPath id="rc"><rect width="${W}" height="${H}" rx="32"/></clipPath><circle cx="${W - 20}" cy="20" r="100" fill="#FFE04D" clip-path="url(#rc)"/>
+    <text x="22" y="40" ${F} font-size="13" font-weight="700" fill="#1F1F1F">${thDate(R.days[0])} – ${thDate(R.days[6])}</text>
+    <text x="22" y="84" ${F} font-size="30" font-weight="700" fill="#1F1F1F">${head[0]}</text><text x="22" y="122" ${F} font-size="30" font-weight="700" fill="#1F1F1F">${head[1]}</text>
+    ${nest(mascot(mood, 116), W - 136, 24)}
+    <rect x="16" y="196" width="${W - 32}" height="136" rx="24" fill="#FFFFFF"/>
+    <line x1="${16 + (W - 32) / 3}" y1="216" x2="${16 + (W - 32) / 3}" y2="312" stroke="#EEEEEA"/><line x1="${16 + 2 * (W - 32) / 3}" y1="216" x2="${16 + 2 * (W - 32) / 3}" y2="312" stroke="#EEEEEA"/>
+    ${stat(16 + (W - 32) / 6 - 45, mascot('happy', 32), '#FFF3B0', R.logged, '/7', 'วันที่จดครบ')}
+    ${stat(16 + (W - 32) / 2 - 45, icon('chicken', 32), '#FFE6D6', R.protDays, '/7', 'Protein ถึงเป้า')}
+    ${stat(16 + 5 * (W - 32) / 6 - 45, icon('tape', 32), '#FFF3B0', waistTxt, R.waist == null ? '' : ' cm', R.waist == null ? 'ยังไม่ได้วัด' : 'รอบเอว')}
+    <rect x="16" y="344" width="${W - 32}" height="196" rx="24" fill="#FFFFFF"/>
+    <text x="32" y="372" ${F} font-size="13" font-weight="700" fill="#1F1F1F">Protein รายวัน</text><text x="${W - 32}" y="372" text-anchor="end" ${F} font-size="12" fill="#5E5E5E">เป้า ${R.pT} g</text>
+    <line x1="30" y1="${gy}" x2="${W - 30}" y2="${gy}" stroke="#E6C200" stroke-width="2" stroke-dasharray="6 4"/>
+    ${bars}
+    <text x="${W - 22}" y="${H - 8}" text-anchor="end" ${F} font-size="10" font-weight="700" fill="#1F1F1F" opacity="0.8">NoNeang</text>
+  </svg>`;
+}
+function vRecap() {
+  const mon = S.recapMon || mondayOf(todayKey()); const R = recapData(mon);
+  db.seenRecap = db.seenRecap || {}; if (!db.seenRecap[mon]) { db.seenRecap[mon] = 1; save(); }
+  return topBar('สรุปประจำสัปดาห์', '', S.recapBack || 'week') +
+    `<div style="margin:6px 18px 0">${recapSVG(R).replace('<svg ', '<svg style="width:100%;height:auto;display:block" ')}</div>
+    <div class="row small mut" style="margin:10px 22px 0;gap:12px;justify-content:center;font-size:12px"><span class="row" style="gap:5px"><span style="width:12px;height:12px;border-radius:4px;background:#FFD000"></span>ถึงเป้า</span><span class="row" style="gap:5px"><span style="width:12px;height:12px;border-radius:4px;background:#E4E4DF"></span>ยังไม่ถึง</span><span class="row" style="gap:5px"><span style="width:12px;height:12px;border-radius:4px;border:2px dashed #C9C9C3;box-sizing:border-box"></span>ส่วนที่ขาด</span><span class="row" style="gap:4px">${svgI('cake', 15)}มื้อพิเศษ</span></div>
+    ${activeReward() ? rewardMini() : ''}
+    <div class="grid2" style="margin:14px 16px 0;grid-template-columns:1.3fr 1fr;gap:10px"><button class="btn" data-act="recapSave"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>บันทึกเป็นรูป</button><button class="btn w" data-act="nav" data-to="week">ดูกราฟ</button></div>` + nav();
+}
+async function recapSave() {
+  try {
+    const svg = recapSVG(recapData(S.recapMon || mondayOf(todayKey())));
+    const img = new Image(); await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
+    const c = document.createElement('canvas'); c.width = 354 * 3; c.height = 560 * 3; const x = c.getContext('2d'); x.scale(3, 3); x.drawImage(img, 0, 0);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png')); const name = 'noneang-' + (S.recapMon || mondayOf(todayKey())) + '.png';
+    const file = new File([blob], name, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) { if (e && e.name === 'AbortError') return; toast('บันทึกรูปไม่ได้ในเบราว์เซอร์นี้ ลองแคปหน้าจอแทนนะ', null, 'huh'); }
+}
+
+/* --- browse dictionary --- */
+function foodRow(f) {
+  const n = nutr(f); const act = f._db ? 'dbLog' : (f.kind === 'sized' ? 'sizeSheet' : 'quickLog');
+  return `<button data-act="${act}" data-id="${f.id}" style="border:none;background:#fff;width:100%;display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #F2EEE6;text-align:left">${iconBox(f.icon, 30, 50, 17)}<span style="flex:1;min-width:0"><b style="display:block;font-size:16px">${esc(f.name)}</b><span class="small mut">${f.kind === 'sized' ? fmt(f.per100.k) + ' kcal ต่อ 100 g' : (n ? fmt(n.k) + ' kcal · 1 ' + esc(f.unit) + (n.p >= 10 ? ' · P ' + Math.round(n.p) : '') : 'ยังไม่มีค่าฉลาก')}${f.src === 'est' || f._db ? ' · ประมาณ' : ''}</span></span>${f.kind === 'sized' ? '<span class="badge" style="background:var(--greenL)">เลือกขนาด ›</span>' : '<span class="ic" style="width:40px;height:40px;border-radius:20px;background:var(--y);font-size:20px;font-weight:700">+</span>'}</button>`;
+}
+function vBrowse() {
+  const g = S.grp || FOOD_GROUPS[0].id; const own = new Set(db.foods.map((f) => f.id));
+  const list = FOOD_DB.filter((f) => f.grp === g).map((f) => own.has(f.id) ? foodById(f.id) : { ...f, _db: true }).filter((f) => f && !f.deleted);
+  return topBar('เมนูทั้งหมด', FOOD_DB.length + ' รายการ · ค่าประมาณต่อ 1 ที่', 'other') +
+    `<div style="margin:6px 0 0;padding:0 16px 4px;display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch">${FOOD_GROUPS.map((x) => `<button class="chip ${x.id === g ? 'on' : ''}" data-act="grp" data-v="${x.id}" style="flex-shrink:0;display:inline-flex;align-items:center;gap:6px;padding-left:6px">${iconBox(x.icon, 16, 26)}${x.name}</button>`).join('')}</div>
+    <div class="card" style="padding:0;overflow:hidden;margin-top:10px">${list.map(foodRow).join('')}</div>
+    <div style="margin:14px 16px 0"><button class="btn ghost" data-act="addFood" data-name="">+ ไม่มีในนี้ · เพิ่มเมนูของฉัน</button></div>`;
+}
+
 /* ================= render ================= */
 const app = document.getElementById('app'); const layer = document.getElementById('layer');
 function render() {
   let html = '';
   if (!db) html = vOnboard();
-  else html = ({ today: vToday, suggest: vSuggest, pick: vPick, other: vOther, addfood: vAddFood, log: vLog, week: vWeek, weighin: vWeighIn, me: vMe }[S.view] || vToday)();
+  else html = ({ today: vToday, suggest: vSuggest, pick: vPick, other: vOther, addfood: vAddFood, log: vLog, week: vWeek, weighin: vWeighIn, me: vMe, stickers: vStickers, reward: vReward, recap: vRecap, browse: vBrowse }[S.view] || vToday)();
   app.innerHTML = html; renderLayer(); renderToast();
 }
 function renderLayer() { const t = layer.querySelector('.toast'); layer.innerHTML = sheetHtml(); if (t) layer.appendChild(t); renderToast(); }
@@ -607,7 +845,26 @@ const A = {
   openLog: (el) => { S.logDate = el.dataset.date; go('log'); },
   logDay: (el) => { S.logDate = addDays(S.logDate || todayKey(), Number(el.dataset.d)); render(); },
   logAdd: (el) => { S.ctx = { date: S.logDate || todayKey(), slot: el.dataset.slot, ret: 'log' }; S.q = ''; S.comp = null; go('other'); },
-  dayDone: (el) => { db.dayStatus[el.dataset.date] = 'done'; save(); render(); },
+  dayDone: (el) => markDay(el.dataset.date, 'done'),
+  daySpecial: (el) => markDay(el.dataset.date, 'special'),
+  dayUndo: (el) => { delete db.dayStatus[el.dataset.date]; save(); render(); },
+  markToday: (el) => markDay(todayKey(), el.dataset.v),
+  celebSheet: () => { S.sheet = null; S.mon = null; go('stickers'); },
+  sameLog: () => { const sm = sameAsYesterday(); if (!sm) return; const out = sm.es.map((e) => { const f = foodById(e.foodId) || { id: e.foodId, name: e.name, icon: e.icon, cat: e.cat, kind: 'item', unit: '' }; const ne = addEntry(f, { n: { k: e.k, p: e.p, f: e.f }, qty: e.qty, grams: e.grams, slot: sm.slot, date: todayKey(), src: e.src }); if (ne) ne.unitLabel = e.unitLabel; return ne; }).filter(Boolean); save(); afterLog(out); },
+  mon: (el) => { S.mon = el.dataset.v; render(); },
+  grp: (el) => { S.grp = el.dataset.v; render(); },
+  dbLog: (el) => { let f = foodById(el.dataset.id); if (!f) { const d = FOOD_DB.find((x) => x.id === el.dataset.id); f = { ...JSON.parse(JSON.stringify(d)), addon: false, userId: db.userId }; db.foods.push(f); save(); } A.quickLog({ dataset: { id: f.id } }); },
+  rwType: (el) => { S.rw.type = el.dataset.v; S.rw.target = RW_TYPES[el.dataset.v].def; render(); },
+  rwStep: (el) => { const T = RW_TYPES[S.rw.type]; S.rw.target = Math.min(T.max, Math.max(T.min, r1(S.rw.target + T.step * Number(el.dataset.d)))); render(); },
+  rwIcon: (el) => { S.rw.icon = el.dataset.v; const nm = document.getElementById('rw-name'); if (nm) S.rw.name = nm.value; render(); },
+  rwSave: () => { const f = S.rw; const name = (f.name || '').trim(); if (!name) { const e = document.getElementById('rw-err'); if (e) e.textContent = 'ตั้งชื่อรางวัลก่อนนะ'; return; }
+    (db.rewards || []).forEach((r) => { if (r.status === 'active') r.status = 'cancelled'; });
+    db.rewards.push({ id: uid(), userId: db.userId, type: f.type, target: f.target, icon: f.icon, name, startDate: todayKey(), start: f.type === 'waist' ? latestWaist() : null, status: 'active', createdAt: new Date().toISOString(), schemaVersion: 1 });
+    save(); S.rw = null; render(); toast('ตั้งรางวัลแล้ว · ' + name, null, 'yay'); },
+  rwClaim: () => { const r = activeReward(); if (!r) return; r.status = 'done'; r.doneAt = todayKey(); save(); render(); toast('ยินดีด้วย! ได้ ' + r.name + ' แล้ว', null, 'yay'); },
+  recapSave: () => recapSave(),
+  openRecap: (el) => { S.recapMon = el.dataset.mon; S.recapBack = 'week'; go('recap'); },
+  checkSpecial: () => { const d = S.sheet.date; markDay(d, 'special'); },
   editQ: (el) => { const e = db.entries.find((x) => x.id === S.sheet.id); S.sheet.qty = Math.max(0.5, (S.sheet.qty ?? e.qty) + Number(el.dataset.d)); renderLayer(); },
   editSlot: (el) => { S.sheet.slot = el.dataset.v; renderLayer(); },
   editSave: () => { const e = db.entries.find((x) => x.id === S.sheet.id); const q = S.sheet.qty ?? e.qty; const ratio = q / e.qty; Object.assign(e, { qty: q, k: r1(e.k * ratio), p: r1(e.p * ratio), f: r1(e.f * ratio), slot: S.sheet.slot ?? e.slot, unitLabel: e.grams ? Math.round(e.grams * ratio) + ' g' : q + ' ' + e.unitLabel.split(' ').slice(1).join(' '), grams: e.grams ? Math.round(e.grams * ratio) : null, editedAt: new Date().toISOString() }); save(); closeSheet(); render(); },
@@ -637,8 +894,7 @@ const A = {
   exportCsv: () => { const rows = [['date', 'slot', 'name', 'qty', 'unit', 'kcal', 'protein_g', 'fiber_g', 'source']].concat(db.entries.map((e) => [e.date, e.slot, e.name, e.qty, e.unitLabel, e.k, e.p, e.f, e.src])); const body = [['date', 'weight_kg', 'waist_cm']].concat(db.body.map((b) => [b.date, b.weight ?? '', b.waist ?? '']));
     const csv = (r) => r.map((x) => x.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n'); download('noneang-food-' + todayKey() + '.csv', '﻿' + csv(rows), 'text/csv'); setTimeout(() => download('noneang-body-' + todayKey() + '.csv', '﻿' + csv(body), 'text/csv'), 400); },
   checkFill: () => { const d = S.sheet.date; closeSheet(); S.logDate = d; go('log'); },
-  checkDone: () => { db.dayStatus[S.sheet.date] = 'done'; save(); closeSheet(); },
-  checkSkip: () => { db.dayStatus[S.sheet.date] = 'skip'; save(); closeSheet(); },
+  checkDone: () => { const d = S.sheet.date; markDay(d, 'done'); },
   /* onboarding */
   obSet: (el) => { S.ob[el.dataset.k] = el.dataset.v; render(); },
   obMeat: (el) => { const v = el.dataset.v; const m = S.ob.meats; S.ob.meats = m.includes(v) ? m.filter((x) => x !== v) : [...m, v]; render(); },
@@ -651,7 +907,7 @@ const A = {
     S.obStep++; render(); window.scrollTo(0, 0); },
   obFinish: () => { const o = S.ob; const userId = uid();
     db = { schemaVersion: 1, userId, createdAt: new Date().toISOString(), profile: { name: (o.name || '').trim(), sex: o.sex, birth: o.birth, height: num(o.height), startWeight: num(o.weight), pace: 'rec', watchPct: 0.6, protPerKg: 1.6, meats: o.meats, meatG: o.meatG, riceG: o.riceG, startDate: todayKey() },
-      foods: STARTER_FOODS.map((f) => ({ ...JSON.parse(JSON.stringify(f)), addon: o.addons.includes(f.id), userId })), entries: [], body: [{ id: uid(), userId, date: todayKey(), weight: num(o.weight), waist: num(o.waist), createdAt: new Date().toISOString(), schemaVersion: 1 }], activity: {}, periods: [], dayStatus: {}, chin: { level: 0, lower: 0 } };
+      foods: STARTER_FOODS.map((f) => ({ ...JSON.parse(JSON.stringify(f)), addon: o.addons.includes(f.id), userId })), entries: [], body: [{ id: uid(), userId, date: todayKey(), weight: num(o.weight), waist: num(o.waist), createdAt: new Date().toISOString(), schemaVersion: 1 }], activity: {}, periods: [], dayStatus: {}, chin: { level: 0, lower: 0 }, rewards: [], seenRecap: {} };
     save(); S.view = 'today'; render(); }
 };
 function initOb() { S.ob = { name: '', sex: 'f', birth: '', height: '', weight: '', waist: '', meats: ['chicken', 'fish', 'beef'], meatG: 100, riceG: 150, addons: STARTER_FOODS.filter((f) => f.addon).map((f) => f.id) }; }
@@ -666,6 +922,7 @@ document.addEventListener('input', (ev) => {
   const el = ev.target; const k = el.dataset && el.dataset.input; if (!k) return;
   if (k === 'q') { S.q = el.value; S.comp = null; refreshResults(); return; }
   if (k === 'sizeG') { S.sheet.customG = num(el.value); return; }
+  if (k === 'rwName') { S.rw.name = el.value; return; }
   const [obj, field] = k.split('.');
   if (obj === 'ob') S.ob[field] = el.value; else if (obj === 'af') S.af[field] = el.value; else if (obj === 'wi') S.wi[field] = el.value; else if (obj === 'lb' || obj === 'pe') S.sheet[field] = el.value;
 });
@@ -685,6 +942,11 @@ if (!db) initOb();
 else {
   const y = addDays(todayKey(), -1);
   if (db.profile.startDate <= y && !db.dayStatus[y] && entriesOn(y).length) S.sheet = { type: 'check', date: y };
+  else {
+    const now = new Date(); const thisMon = mondayOf(todayKey()); const lastMon = addDays(thisMon, -7);
+    const pick = now.getDay() === 0 && now.getHours() >= 17 ? thisMon : (now.getDay() >= 1 && now.getDay() <= 2 ? lastMon : null);
+    if (pick && !db.seenRecap[pick] && pick >= mondayOf(db.profile.startDate) && [...Array(7)].some((_, i) => entriesOn(addDays(pick, i)).length)) { S.view = 'recap'; S.recapMon = pick; S.recapBack = 'today'; }
+  }
 }
 render();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
