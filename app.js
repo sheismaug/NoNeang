@@ -44,7 +44,8 @@ function targetBase(p) { const raw = baseTDEE(p) - PACE[p.pace].def; return { va
 const activeOf = (k) => db.activity[k] || 0;
 const watchCredit = (k) => Math.round(activeOf(k) * db.profile.watchPct);
 const goalOf = (k) => targetBase(db.profile).value + watchCredit(k);
-const proteinTarget = () => Math.round(1.2 * db.profile.startWeight);
+const protPerKg = () => db.profile.protPerKg ?? 1.6;
+const proteinTarget = () => Math.round(protPerKg() * db.profile.startWeight);
 const FIBER = 25;
 const entriesOn = (k) => db.entries.filter((e) => e.date === k);
 function totals(k) { return entriesOn(k).reduce((a, e) => ({ k: a.k + e.k, p: a.p + e.p, f: a.f + e.f }), { k: 0, p: 0, f: 0 }); }
@@ -502,7 +503,8 @@ function sheetHtml() {
     const p = db.profile; const tb = targetBase(p);
     return wrap(`<div class="row"><b style="flex:1;font-size:19px">เป้ามาจากไหน</b>${closeBtn}</div>
       ${[['BMR (Mifflin-St Jeor)', fmt(bmr(p))], ['× 1.2 นั่งทำงาน = ใช้ต่อวัน', fmt(baseTDEE(p))], ['− ' + PACE[p.pace].def + ' เพื่อลด ' + PACE[p.pace].kg + ' kg/สัปดาห์', fmt(tb.raw)], ['ขั้นต่ำเพื่อความปลอดภัย', p.sex === 'm' ? '1,500' : '1,200'], ['เป้าฐานต่อวัน', fmt(tb.value)]].map(([l, v], i) => `<div class="row" style="${i === 4 ? 'background:var(--y);border-radius:16px;padding:10px 12px' : 'padding:0 4px'}"><span style="flex:1;font-size:14px">${l}</span><b style="font-size:${i === 4 ? 22 : 17}px">${v}</b></div>`).join('')}
-      <span class="small mut" style="line-height:1.6">บวก ${Math.round(p.watchPct * 100)}% ของ active kcal จาก Watch ทุกวัน · ใช้ ×1.2 เป็นฐานเพื่อไม่นับการออกกำลังซ้ำ · protein 1.2 g/kg = ${proteinTarget()} g</span>
+      <span class="small mut" style="line-height:1.6">บวก ${Math.round(p.watchPct * 100)}% ของ active kcal จาก Watch ทุกวัน · ใช้ ×1.2 เป็นฐานเพื่อไม่นับการออกกำลังซ้ำ · protein ${protPerKg()} g/kg = ${proteinTarget()} g</span>
+      <div class="row"><b style="flex:1;font-size:14px">Protein g/kg</b>${[1.2, 1.4, 1.6, 2.0].map((v) => `<button class="chip ${protPerKg() === v ? 'on' : ''}" data-act="protKg" data-v="${v}">${v}</button>`).join('')}</div>
       <div class="row"><b style="flex:1;font-size:14px">นับจาก Watch</b>${[0.5, 0.6, 0.7, 0.8].map((v) => `<button class="chip ${p.watchPct === v ? 'on' : ''}" data-act="watchPct" data-v="${v}">${v * 100}%</button>`).join('')}</div>`);
   }
   if (s.type === 'foods') {
@@ -600,6 +602,7 @@ const A = {
     f.n = { k, p: num(s.p) || 0, f: num(s.f) || 0 }; f.src = 'label'; save(); closeSheet(); if (s.then) { const e = addEntry(f, s.then); if (e) afterLog([e]); } else render(); },
   key: (el) => { let v = S.sheet.v ?? String(activeOf(S.sheet.date) || ''); v = el.dataset.v === '⌫' ? v.slice(0, -1) : (v + el.dataset.v).replace(/^0+/, '').slice(0, 4); S.sheet.v = v; renderLayer(); },
   watchSave: () => { const v = Number(S.sheet.v ?? activeOf(S.sheet.date)) || 0; db.activity[S.sheet.date] = v; save(); closeSheet(); render(); },
+  protKg: (el) => { db.profile.protPerKg = Number(el.dataset.v); save(); renderLayer(); render(); },
   watchPct: (el) => { db.profile.watchPct = Number(el.dataset.v); save(); renderLayer(); render(); },
   openLog: (el) => { S.logDate = el.dataset.date; go('log'); },
   logDay: (el) => { S.logDate = addDays(S.logDate || todayKey(), Number(el.dataset.d)); render(); },
@@ -647,7 +650,7 @@ const A = {
     if (S.obStep === 2 && !o.meats.length) { err.textContent = 'เลือกอย่างน้อย 1 อย่าง'; return; }
     S.obStep++; render(); window.scrollTo(0, 0); },
   obFinish: () => { const o = S.ob; const userId = uid();
-    db = { schemaVersion: 1, userId, createdAt: new Date().toISOString(), profile: { name: (o.name || '').trim(), sex: o.sex, birth: o.birth, height: num(o.height), startWeight: num(o.weight), pace: 'rec', watchPct: 0.6, meats: o.meats, meatG: o.meatG, riceG: o.riceG, startDate: todayKey() },
+    db = { schemaVersion: 1, userId, createdAt: new Date().toISOString(), profile: { name: (o.name || '').trim(), sex: o.sex, birth: o.birth, height: num(o.height), startWeight: num(o.weight), pace: 'rec', watchPct: 0.6, protPerKg: 1.6, meats: o.meats, meatG: o.meatG, riceG: o.riceG, startDate: todayKey() },
       foods: STARTER_FOODS.map((f) => ({ ...JSON.parse(JSON.stringify(f)), addon: o.addons.includes(f.id), userId })), entries: [], body: [{ id: uid(), userId, date: todayKey(), weight: num(o.weight), waist: num(o.waist), createdAt: new Date().toISOString(), schemaVersion: 1 }], activity: {}, periods: [], dayStatus: {}, chin: { level: 0, lower: 0 } };
     save(); S.view = 'today'; render(); }
 };
