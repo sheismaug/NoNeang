@@ -79,13 +79,17 @@ const KEY = ${JSON.stringify(c.key)};
 const TOKEN = ${JSON.stringify(this.token || '')};
 const ASSETS = ${JSON.stringify(base)};
 const APP = ${JSON.stringify(base.replace(/w\/$/, ''))};
+// สีพื้น widget: 'brand' (เหลือง + การ์ดขาว) | 'cream' | 'sand' | 'white' แล้วกดรันใหม่
+const THEME = 'brand';
 ` + WIDGET_BODY;
   },
 
 };
 
 const WIDGET_BODY = String.raw`
-const YEL = new Color('#FFD000'), TRACK = new Color('#FFF3B0'), INK = new Color('#1F1F1F'), GREY = new Color('#8A8A8A'), RED = new Color('#C2522E'), WHITE = Color.white();
+const BRAND = THEME === 'brand';
+const PAL = { brand: ['#FFD000', '#FFF3B0', '#FFF3B0'], white: ['#FFFFFF', '#FFF3B0', '#FFF3B0'], cream: ['#FFF8E3', '#FFEBA0', '#FFEBA0'], sand: ['#F4EFE4', '#FFE68A', '#FFFFFF'], yellow: ['#FFEFA3', '#FFFFFF', '#FFFFFF'] }[THEME] || ['#FFF8E3', '#FFEBA0', '#FFEBA0'];
+const YEL = new Color('#FFD000'), TRACK = new Color(PAL[1]), PILL = new Color(PAL[2]), INK = new Color('#1F1F1F'), GREY = new Color('#857F72'), RED = new Color('#C2522E'), BGC = new Color(PAL[0]), WHITE = BGC;
 const fm = FileManager.local(); const dir = fm.joinPath(fm.cacheDirectory(), 'noneang'); if (!fm.fileExists(dir)) fm.createDirectory(dir);
 async function img(name) {
   const p = fm.joinPath(dir, name + '.png');
@@ -156,20 +160,29 @@ else {
     more: ['ยังกินได้อีก', 'เปิดแอปดูว่า\nเติมอะไรดี', 'mascot-wave'] };
   if (fam === 'small') {
     const m = await img(evening && !d.loggedToday ? 'mascot-sleepy' : 'mascot-happy');
-    w.backgroundImage = bgImg(170, 170, m, 128, 6, 36); w.setPadding(10, 12, 12, 12);
-    const top = centered(w); const ri = top.addImage(ringImg(112, pct, label, num, 'kcal', over ? RED : INK)); ri.imageSize = new Size(112, 112); top.addSpacer();
-    w.addSpacer(); proteinRow(w, need, chick, 15);
+    if (BRAND) {
+      w.backgroundImage = bgImg(170, 170, null); w.setPadding(8, 8, 8, 8);
+      const card = w.addStack(); card.layoutVertically(); card.backgroundColor = Color.white(); card.cornerRadius = 24; card.setPadding(6, 8, 9, 8);
+      const top = centered(card); const ri = top.addImage(ringImg(104, pct, label, num, 'kcal', over ? RED : INK)); ri.imageSize = new Size(104, 104); top.addSpacer();
+      card.addSpacer(); proteinRow(card, need, chick, 14);
+    } else {
+      w.backgroundImage = bgImg(170, 170, m, 128, 6, 36); w.setPadding(10, 12, 12, 12);
+      const top = centered(w); const ri = top.addImage(ringImg(112, pct, label, num, 'kcal', over ? RED : INK)); ri.imageSize = new Size(112, 112); top.addSpacer();
+      w.addSpacer(); proteinRow(w, need, chick, 15);
+    }
   } else {
-    w.backgroundImage = bgImg(364, 170, null); w.setPadding(14, 14, 14, 16);
+    w.backgroundImage = bgImg(364, 170, null); w.setPadding(BRAND ? 8 : 14, BRAND ? 8 : 14, BRAND ? 8 : 14, BRAND ? 8 : 16);
     const body = w.addStack(); body.layoutHorizontally();
-    const L = body.addStack(); L.layoutVertically(); L.size = new Size(132, 0);
+    const L = body.addStack(); L.layoutVertically(); L.size = new Size(BRAND ? 140 : 132, 0);
+    if (BRAND) { L.backgroundColor = Color.white(); L.cornerRadius = 22; L.setPadding(6, 4, 9, 4); }
     const lt = centered(L); const ri = lt.addImage(ringImg(112, pct, label, num, 'kcal', over ? RED : INK)); ri.imageSize = new Size(112, 112); lt.addSpacer();
     L.addSpacer(); proteinRow(L, need, chick, 14);
-    body.addSpacer(14);
+    body.addSpacer(BRAND ? 8 : 14);
     const R = body.addStack(); R.layoutVertically();
+    if (BRAND) { R.backgroundColor = Color.white(); R.cornerRadius = 22; R.setPadding(10, 12, 10, 12); }
     const hd = R.addStack(); hd.layoutHorizontally(); hd.centerAlignContent();
     t(hd, state === 'sug' ? 'กินต่อได้' : 'วันนี้', F(15)); hd.addSpacer();
-    const pill = hd.addStack(); pill.backgroundColor = TRACK; pill.cornerRadius = 12; pill.setPadding(3, 6, 3, 10); pill.centerAlignContent();
+    const pill = hd.addStack(); pill.backgroundColor = PILL; pill.cornerRadius = 12; pill.setPadding(3, 6, 3, 10); pill.centerAlignContent();
     const fl = await img('plain-flame'); if (fl) { const fi = pill.addImage(fl); fi.imageSize = new Size(15, 15); } pill.addSpacer(2); t(pill, d.streak, F(14));
     R.addSpacer(8);
     if (state === 'sug') {
