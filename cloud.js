@@ -104,15 +104,20 @@ async function load() {
 }
 const F = (s) => Font.boldRoundedSystemFont(s), FM = (s) => Font.semiboldRoundedSystemFont(s);
 // ring with the three centred lines drawn inside (label / big number / unit)
-function ringImg(size, pct, label, num, unit, numColor) {
-  const S = 3, s = size * S, lw = 13 * S, ctx = new DrawContext(); ctx.size = new Size(s, s); ctx.opaque = false; ctx.respectScreenScale = false;
-  const r = (s - lw) / 2, cx = s / 2, cy = s / 2;
-  ctx.setStrokeColor(TRACK); ctx.setLineWidth(lw); ctx.strokeEllipse(new Rect(lw / 2, lw / 2, s - lw, s - lw));
+function ringImg(size, pct, label, num, unit, numColor, rider) {
+  const S = 3, s = size * S, lw = 12 * S, ctx = new DrawContext(); ctx.size = new Size(s, s); ctx.opaque = false; ctx.respectScreenScale = false;
+  const rs = rider ? 28 * S : 0, m = rider ? rs / 2 - lw / 2 : 0;
+  const r = (s - lw) / 2 - m, cx = s / 2, cy = s / 2;
+  ctx.setStrokeColor(TRACK); ctx.setLineWidth(lw); ctx.strokeEllipse(new Rect(cx - r, cy - r, 2 * r, 2 * r));
   pct = Math.max(0, Math.min(1, pct));
   if (pct > 0.01) { const path = new Path(); const n = Math.max(2, Math.round(90 * pct)); const pts = [];
     for (let i = 0; i <= n; i++) { const a = -Math.PI / 2 + 2 * Math.PI * pct * i / n; pts.push(new Point(cx + r * Math.cos(a), cy + r * Math.sin(a))); }
     path.addLines(pts); ctx.addPath(path); ctx.setStrokeColor(YEL); ctx.setLineWidth(lw); ctx.strokePath();
     for (const pt of [pts[0], pts[pts.length - 1]]) { ctx.setFillColor(YEL); ctx.fillEllipse(new Rect(pt.x - lw / 2, pt.y - lw / 2, lw, lw)); } }
+  if (rider) { const a = -Math.PI / 2 + 2 * Math.PI * pct; const ex = cx + r * Math.cos(a), ey = cy + r * Math.sin(a);
+    ctx.setFillColor(new Color('#000000', 0.12)); ctx.fillEllipse(new Rect(ex - rs / 2, ey - rs / 2 + 2 * S, rs, rs));
+    ctx.setFillColor(Color.white()); ctx.fillEllipse(new Rect(ex - rs / 2, ey - rs / 2, rs, rs));
+    const ri = rs * 0.86; ctx.drawImageInRect(rider, new Rect(ex - ri / 2, ey - ri / 2, ri, ri)); }
   const ns = (num.length > 5 ? 0.25 : 0.3) * size;
   ctx.setTextAlignedCenter();
   ctx.setFont(F(11 * S)); ctx.setTextColor(GREY); ctx.drawTextInRect(label, new Rect(0, cy - ns * S * 0.5 - 18 * S, s, 16 * S));
@@ -123,6 +128,7 @@ function ringImg(size, pct, label, num, unit, numColor) {
 function bgImg(w, h, mascot, mx, my, ms) {
   const S = 3, ctx = new DrawContext(); ctx.size = new Size(w * S, h * S); ctx.opaque = true; ctx.respectScreenScale = false;
   ctx.setFillColor(WHITE); ctx.fillRect(new Rect(0, 0, w * S, h * S));
+  if (BRAND) { ctx.setFillColor(new Color('#FFE45C')); for (let y = 7; y < h; y += 14) for (let x = (y / 14 % 2 ? 7 : 0); x < w; x += 14) ctx.fillEllipse(new Rect((x - 2) * S, (y - 2) * S, 4 * S, 4 * S)); }
   if (mascot) ctx.drawImageInRect(mascot, new Rect(mx * S, my * S, ms * S, ms * S));
   return ctx.getImage();
 }
@@ -130,7 +136,7 @@ function t(st, s, font, color = INK) { const x = st.addText(String(s)); x.font =
 function centered(parent) { const r = parent.addStack(); r.layoutHorizontally(); r.centerAlignContent(); r.addSpacer(); return r; }
 function proteinRow(parent, need, chick, sz) {
   const r = centered(parent);
-  if (chick) { const ci = r.addImage(chick); ci.imageSize = new Size(sz + 3, sz + 3); r.addSpacer(5); }
+  if (chick) { const ci = r.addImage(chick); ci.imageSize = BRAND ? new Size(sz + 9, sz + 9) : new Size(sz + 3, sz + 3); r.addSpacer(5); }
   if (need > 0) { t(r, 'เติมโปรตีนอีก ', FM(sz - 3), GREY); t(r, need, F(sz + 2)); t(r, ' g', FM(sz - 3), GREY); }
   else t(r, 'โปรตีนครบ ✓', F(sz));
   r.addSpacer(); return r;
@@ -140,7 +146,8 @@ const d = await load(); const now = new Date(); const pad = (n) => String(n).pad
 const tk = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
 const fam = config.widgetFamily || 'medium'; const evening = now.getHours() >= 19;
 const w = new ListWidget(); w.backgroundColor = WHITE;
-let chick = await img('plain-chicken'); if (!chick) chick = await img('icon-chicken');
+let chick = BRAND ? await img('dot-protein') : await img('plain-chicken'); if (!chick) chick = await img('icon-chicken');
+const riderImg = BRAND ? await img(evening && !(d && d.loggedToday) ? 'mascot-sleepy' : 'mascot-happy') : null;
 if (!d) { w.setPadding(14, 14, 14, 14); t(w, 'NoNeang', F(15)); w.addSpacer(4); t(w, 'เปิดแอปแล้วกดซิงก์ก่อนนะ', FM(12), GREY); }
 else {
   const fresh = d.date === tk; const eaten = fresh ? d.eaten : 0; const prot = fresh ? d.protein : 0;
@@ -162,8 +169,8 @@ else {
     const m = await img(evening && !d.loggedToday ? 'mascot-sleepy' : 'mascot-happy');
     if (BRAND) {
       w.backgroundImage = bgImg(170, 170, null); w.setPadding(8, 8, 8, 8);
-      const card = w.addStack(); card.layoutVertically(); card.backgroundColor = Color.white(); card.cornerRadius = 24; card.setPadding(6, 8, 9, 8);
-      const top = centered(card); const ri = top.addImage(ringImg(104, pct, label, num, 'kcal', over ? RED : INK)); ri.imageSize = new Size(104, 104); top.addSpacer();
+      const card = w.addStack(); card.layoutVertically(); card.backgroundColor = Color.white(); card.cornerRadius = 24; card.setPadding(2, 6, 8, 6);
+      const top = centered(card); const ri = top.addImage(ringImg(116, pct, label, num, 'kcal', over ? RED : INK, riderImg)); ri.imageSize = new Size(116, 116); top.addSpacer();
       card.addSpacer(); proteinRow(card, need, chick, 14);
     } else {
       w.backgroundImage = bgImg(170, 170, m, 128, 6, 36); w.setPadding(10, 12, 12, 12);
@@ -174,23 +181,27 @@ else {
     w.backgroundImage = bgImg(364, 170, null); w.setPadding(BRAND ? 8 : 14, BRAND ? 8 : 14, BRAND ? 8 : 14, BRAND ? 8 : 16);
     const body = w.addStack(); body.layoutHorizontally();
     const L = body.addStack(); L.layoutVertically(); L.size = new Size(BRAND ? 140 : 132, 0);
-    if (BRAND) { L.backgroundColor = Color.white(); L.cornerRadius = 22; L.setPadding(6, 4, 9, 4); }
-    const lt = centered(L); const ri = lt.addImage(ringImg(112, pct, label, num, 'kcal', over ? RED : INK)); ri.imageSize = new Size(112, 112); lt.addSpacer();
+    if (BRAND) { L.backgroundColor = Color.white(); L.cornerRadius = 22; L.setPadding(2, 4, 8, 4); }
+    const lt = centered(L); const rsz = BRAND ? 118 : 112; const ri = lt.addImage(ringImg(rsz, pct, label, num, 'kcal', over ? RED : INK, riderImg)); ri.imageSize = new Size(rsz, rsz); lt.addSpacer();
     L.addSpacer(); proteinRow(L, need, chick, 14);
     body.addSpacer(BRAND ? 8 : 14);
     const R = body.addStack(); R.layoutVertically();
     if (BRAND) { R.backgroundColor = Color.white(); R.cornerRadius = 22; R.setPadding(10, 12, 10, 12); }
     const hd = R.addStack(); hd.layoutHorizontally(); hd.centerAlignContent();
-    t(hd, state === 'sug' ? 'กินต่อได้' : 'วันนี้', F(15)); hd.addSpacer();
-    const pill = hd.addStack(); pill.backgroundColor = PILL; pill.cornerRadius = 12; pill.setPadding(3, 6, 3, 10); pill.centerAlignContent();
-    const fl = await img('plain-flame'); if (fl) { const fi = pill.addImage(fl); fi.imageSize = new Size(15, 15); } pill.addSpacer(2); t(pill, d.streak, F(14));
+    t(hd, state === 'sug' ? 'กินต่อได้' : 'วันนี้', F(15));
+    if (BRAND) { const sp = await img('plain-sparkle'); if (sp) { hd.addSpacer(4); const si = hd.addImage(sp); si.imageSize = new Size(13, 13); } }
+    hd.addSpacer();
+    const pill = hd.addStack(); pill.backgroundColor = BRAND ? new Color('#FFE6E0') : PILL; pill.cornerRadius = 12; pill.setPadding(3, 6, 3, 10); pill.centerAlignContent();
+    const fl = await img('plain-flame'); if (fl) { const fi = pill.addImage(fl); fi.imageSize = new Size(15, 15); } pill.addSpacer(2); t(pill, BRAND ? d.streak + ' วัน' : d.streak, F(BRAND ? 13 : 14));
     R.addSpacer(8);
     if (state === 'sug') {
       const items = d.sug.items.slice(0, 3);
       for (let i = 0; i < items.length; i++) {
         const it = items[i]; const row = R.addStack(); row.layoutHorizontally(); row.centerAlignContent();
-        const ic = await img('icon-' + it.icon) || await img('icon-snack'); if (ic) { const ii = row.addImage(ic); ii.imageSize = new Size(32, 32); }
-        row.addSpacer(9); t(row, it.name || '', F(15)); row.addSpacer(); t(row, it.q, F(14), GREY);
+        const ic = await img((BRAND ? 'dot-' : 'icon-') + it.icon) || await img('icon-snack'); if (ic) { const ii = row.addImage(ic); ii.imageSize = new Size(32, 32); }
+        row.addSpacer(9); t(row, it.name || '', F(15)); row.addSpacer(6);
+        if (BRAND) { const qb = row.addStack(); qb.backgroundColor = new Color('#FFF3B0'); qb.cornerRadius = 10; qb.setPadding(2, 8, 2, 8); t(qb, it.q, F(13), new Color('#6B5A00')); }
+        else t(row, it.q, F(14), GREY);
         if (i < items.length - 1) R.addSpacer();
       }
     } else {
