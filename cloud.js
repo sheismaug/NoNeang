@@ -31,7 +31,7 @@ const Cloud = {
       let sug = null;
       try { const sc = suggestCombos(k, 'all'); const b = sc.combos[0];
         if (b) sug = { items: b.items.map((i) => ({ icon: i.food.icon, q: i.food.kind === 'sized' ? i.grams + 'g' : '×' + i.qty, name: i.food.name })), k: Math.round(b.sum.k), p: Math.round(b.sum.p) }; } catch (e) {}
-      return { date: k, name: db.profile.name || '', goal: Math.round(goalOf(k)), eaten: Math.round(t.k), protein: Math.round(t.p), pT, fiber: Math.round(t.f), fT: FIBER, streak: streakInfo().cur, loggedToday: LOGGED(k), sug, at: new Date().toISOString() };
+      return { date: k, name: db.profile.name || '', goal: Math.round(goalOf(k)), base: Math.round(targetBase(db.profile).value), eaten: Math.round(t.k), protein: Math.round(t.p), pT, fiber: Math.round(t.f), fT: FIBER, streak: streakInfo().cur, loggedToday: LOGGED(k), sug, at: new Date().toISOString() };
     } catch (e) { return null; }
   },
   queue() {
@@ -137,7 +137,7 @@ let chick = await img('plain-chicken'); if (!chick) chick = await img('icon-chic
 if (!d) { w.backgroundColor = Y; text(w, 'NoNeang', 14); w.addSpacer(4); text(w, 'เปิดแอปแล้วกดซิงก์ก่อนนะ', 12, MUT, false); }
 else {
   const fresh = d.date === tk; const eaten = fresh ? d.eaten : 0; const prot = fresh ? d.protein : 0;
-  const left = d.goal - eaten; const need = Math.max(0, d.pT - prot);
+  const goal = fresh ? d.goal : (d.base || d.goal); const left = goal - eaten; const need = Math.max(0, d.pT - prot);
   const kTxt = left >= 0 ? left.toLocaleString('en-US') : '+' + (-left).toLocaleString('en-US');
   const kUnit = left >= 0 ? 'kcal' : 'เกิน';
   const pTxt = need > 0 ? String(need) : 'ครบ'; const pUnit = need > 0 ? 'g' : '✓';
@@ -149,7 +149,7 @@ else {
     const m = await img(evening && !d.loggedToday ? 'mascot-sleepy' : 'mascot-happy'); if (m) { const mi = top.addImage(m); mi.imageSize = new Size(46, 46); }
     w.addSpacer();
     const card = w.addStack(); card.layoutVertically(); card.backgroundColor = WHITE; card.cornerRadius = 22; card.setPadding(10, 12, 10, 12);
-    numRow(card, ring(34, eaten / d.goal), kTxt, kUnit, 32, 25); card.addSpacer(7); divider(card); card.addSpacer(7);
+    numRow(card, ring(34, eaten / goal), kTxt, kUnit, 32, 25); card.addSpacer(7); divider(card); card.addSpacer(7);
     numRow(card, tile(34, prot / d.pT, chick), pTxt, pUnit, 32, 25);
   } else {
     w.backgroundImage = bg(364, 170, 350, 0, 70);
@@ -161,7 +161,7 @@ else {
     w.addSpacer(6);
     const body = w.addStack(); body.layoutHorizontally();
     const L = body.addStack(); L.layoutVertically(); L.backgroundColor = WHITE; L.cornerRadius = 22; L.setPadding(10, 12, 10, 8); L.size = new Size(150, 0);
-    L.addSpacer(); numRow(L, ring(34, eaten / d.goal), kTxt, kUnit, 32, 26); L.addSpacer(); divider(L); L.addSpacer(); numRow(L, tile(34, prot / d.pT, chick), pTxt, pUnit, 32, 26); L.addSpacer();
+    L.addSpacer(); numRow(L, ring(34, eaten / goal), kTxt, kUnit, 32, 26); L.addSpacer(); divider(L); L.addSpacer(); numRow(L, tile(34, prot / d.pT, chick), pTxt, pUnit, 32, 26); L.addSpacer();
     body.addSpacer(8);
     const R = body.addStack(); R.layoutVertically(); R.backgroundColor = CREAM; R.cornerRadius = 22; R.setPadding(10, 12, 10, 10);
     if (fresh && d.sug && d.sug.items && d.sug.items.length && left > 60) {
