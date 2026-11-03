@@ -33,20 +33,21 @@ const Store = {
   save(d) { d.updatedAt = new Date().toISOString(); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { toast('บันทึกลงเครื่องไม่ได้ (พื้นที่เต็มหรือโหมดส่วนตัว)'); } if ((typeof Cloud !== 'undefined')) Cloud.queue(); }
 };
 let db = Store.load();
-if (db) { db.rewards = db.rewards || []; db.seenRecap = db.seenRecap || {}; }
+if (db) { db.rewards = db.rewards || []; db.seenRecap = db.seenRecap || {}; db.plates = db.plates || []; db.periodEnds = db.periodEnds || {}; const mk = db.foods.find((f) => f.id === 'milk'); if (mk && !mk.group) mk.group = 'นมโปรตีน'; }
 const save = () => Store.save(db);
 
 /* ================= calculations ================= */
 const PACE = { slow: { def: 250, name: 'สบายๆ', kg: 0.25 }, rec: { def: 500, name: 'แนะนำ', kg: 0.5 }, fast: { def: 750, name: 'เร่ง', kg: 0.75 } };
 function ageOf(birth) { const b = parseKey(birth); const t = new Date(); let a = t.getFullYear() - b.getFullYear(); if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) a--; return a; }
-function bmr(p) { return 10 * p.startWeight + 6.25 * p.height - 5 * ageOf(p.birth) + (p.sex === 'm' ? 5 : -161); }
+const calcW = (p) => p.calcWeight || p.startWeight;
+function bmr(p) { return 10 * calcW(p) + 6.25 * p.height - 5 * ageOf(p.birth) + (p.sex === 'm' ? 5 : -161); }
 function baseTDEE(p) { return bmr(p) * 1.2; }
 function targetBase(p) { const raw = baseTDEE(p) - PACE[p.pace].def; return { value: Math.max(p.sex === 'm' ? 1500 : 1200, Math.round(raw)), raw: Math.round(raw) }; }
 const activeOf = (k) => db.activity[k] || 0;
 const watchCredit = (k) => Math.round(activeOf(k) * db.profile.watchPct);
 const goalOf = (k) => targetBase(db.profile).value + watchCredit(k);
 const protPerKg = () => db.profile.protPerKg ?? 1.6;
-const proteinTarget = () => Math.round(protPerKg() * db.profile.startWeight);
+const proteinTarget = () => Math.round(protPerKg() * calcW(db.profile));
 const FIBER = 25;
 const entriesOn = (k) => db.entries.filter((e) => e.date === k);
 function totals(k) { return entriesOn(k).reduce((a, e) => ({ k: a.k + e.k, p: a.p + e.p, f: a.f + e.f }), { k: 0, p: 0, f: 0 }); }
@@ -163,7 +164,7 @@ function hero(title, sub, opts = {}) {
 function topBar(title, sub, back) { return `<div class="top"><button class="back" data-act="back" data-to="${back}" aria-label="กลับ">${chev('l')}</button><div><h1>${title}</h1>${sub ? `<div class="sub">${sub}</div>` : ''}</div></div>`; }
 function nav() {
   const b = (v, label, d) => `<button class="${S.view === v ? 'on' : ''}" data-act="nav" data-to="${v}"><span class="pill"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">${d}</svg></span>${label}</button>`;
-  return `<nav class="nav">${b('today', 'วันนี้', '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>')}${b('week', 'สัปดาห์', '<path d="M5 20V10M12 20V4M19 20v-7"/>')}${b('me', 'ฉัน', '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>')}</nav>`;
+  return `<nav class="nav">${b('today', 'วันนี้', '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>')}${b('week', 'ภาพรวม', '<path d="M5 20V10M12 20V4M19 20v-7"/>')}${b('me', 'ฉัน', '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>')}</nav>`;
 }
 function ring(pct, size, stroke, col, track, over = 0) {
   const r = (size - stroke) / 2; const c = 2 * Math.PI * r; const d = Math.max(0, Math.min(1, pct)) * c;
@@ -198,14 +199,7 @@ function vToday() {
       <div class="row" style="gap:8px;margin-top:12px">
         <button data-act="sheet" data-type="watch" style="flex:1;min-height:40px;border-radius:20px;border:none;background:var(--lav);display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:700"><span class="ic" style="width:26px;height:26px;border-radius:13px;background:#fff">${svgI('watch', 16)}</span>Watch +${watchCredit(k)} ${pencil('#5B4FCF')}</button>
         <span class="small mut" style="min-height:40px;border-radius:20px;background:var(--g);padding:0 12px;display:flex;align-items:center">กินแล้ว ${fmt(t.k)} / ${fmt(goal)}</span>
-      </div></div>` + eq + todayExtras() +
-    `<div class="h2" style="margin-top:16px">กินอะไรมา?</div>
-    <div class="grid3" style="margin:0 18px">${meals}</div>
-    <div class="grid2" style="margin:12px 18px 0">
-      <button class="btn" data-act="nav" data-to="suggest"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c.6 5 2.5 7.4 8 8-5.5.6-7.4 3-8 8-.6-5-2.5-7.4-8-8 5.5-.6 7.4-3 8-8z" fill="#fff" stroke="#1F1F1F" stroke-width="1.4" stroke-linejoin="round"/></svg>เติมอะไรดี?</button>
-      <button class="btn w" data-act="nav" data-to="other"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>อย่างอื่น</button>
-    </div>
-    <button data-act="openLog" data-date="${k}" style="margin:12px 18px 0;width:calc(100% - 36px);border:none;background:var(--g);border-radius:22px;min-height:54px;padding:0 16px;display:flex;align-items:center;gap:10px;text-align:left"><span style="flex:1;font-size:14px;font-weight:600">${cnt ? 'วันนี้กิน ' + cnt + ' ครั้ง · ' + fmt(t.k) + ' kcal' : 'ยังไม่ได้บันทึกวันนี้'}</span>${chev('r', 18)}</button>` + finishDayCard() + nav();
+      </div></div>` + todayBody() + nav();
 }
 
 function vSuggest() {
@@ -314,19 +308,27 @@ function otherResults() {
 
 function vAddFood() {
   const a = S.af; const cats = [['main', 'จานหลัก'], ['veg', 'ผัก/ผลไม้'], ['snack', 'ขนม'], ['drink', 'เครื่องดื่ม']];
-  const units = ['ชิ้น', 'จาน', 'ถ้วย', 'กล่อง', 'แก้ว', 'ลูก'];
+  const units = ['ทัพพี', 'จาน', 'ถ้วย', 'ชิ้น', 'ฟอง', 'กล่อง', 'แก้ว', 'ซอง', 'กรัม'];
+  const IG = [['ข้าว / เส้น / แป้ง', ['rice', 'main', 'noodle', 'bread', 'waffle', 'snack', 'corn', 'sweetpotato']], ['โปรตีน', ['chicken', 'fish', 'beef', 'pork', 'shrimp', 'egg', 'friedegg', 'tofu', 'sausage', 'cheese']], ['ผัก / ผลไม้', ['veg', 'salad', 'broc', 'peas', 'guava', 'apple', 'banana', 'orange', 'mango']], ['เครื่องดื่ม / ของว่าง', ['milk', 'shake', 'yogurt', 'coffee', 'boba', 'drink', 'soup', 'icecream', 'cake', 'nuts', 'butter']]].map(([g, ks]) => [g, ks.filter((k) => ICONS[k])]);
+  const curIcon = a.icon || CAT_ICON[a.cat]; const isG = a.unit === 'กรัม'; const custom = a.unit && !units.includes(a.unit);
+  const icBtn = (k) => `<button data-act="afIcon" data-v="${k}" aria-label="${k}" style="border:none;padding:0;width:44px;height:44px;border-radius:22px;background:${ICONS[k][0]};display:flex;align-items:center;justify-content:center;${k === curIcon ? 'box-shadow:0 0 0 2.5px #FFD000' : ''}"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">${ICONS[k][1]}</svg></button>`;
+  const quick = [...new Set([curIcon, 'rice', 'chicken', 'egg', 'veg', 'milk'])].slice(0, 5);
+  const allN = IG.reduce((t, [, ks]) => t + ks.length, 0);
   const num = (k, label, req) => `<div class="field"><label for="af-${k}" style="${req ? 'color:var(--ink)' : ''}">${label}${req ? ' <span style="color:#8A6D00">· ต้องใส่</span>' : ''}</label><input id="af-${k}" inputmode="decimal" data-input="af.${k}" value="${a[k] ?? ''}" placeholder="${req ? '0' : 'ถ้ารู้'}" style="height:52px;border-radius:16px;text-align:center;font-size:19px;font-weight:700;min-width:0;${req ? 'border:2px solid #FFD000;background:#FFFBE6' : 'border:1.5px dashed #CFCFCF;background:#fff'}"></div>`;
   const card = (n, title, inner, extra = '') => `<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="row"><span class="ic" style="width:26px;height:26px;border-radius:13px;background:var(--y);font-size:13px;font-weight:700">${n}</span><b style="font-size:16px">${title}</b>${extra}</div>${inner}</div>`;
   return `<div style="background:var(--g);min-height:100vh;padding-bottom:30px">` + topBar(a.id ? 'แก้เมนู' : 'เพิ่มเมนูของฉัน', 'กรอกครั้งเดียว ครั้งหน้าพิมพ์หาเจอเลย', a.back || 'other').replace('class="back"', 'class="back" style="background:#fff"') +
     card(1, 'ชื่อเมนู', `<input data-input="af.name" value="${esc(a.name)}" aria-label="ชื่อเมนู" style="height:52px;border-radius:16px;border:2px solid #FFD000;padding:0 14px;font-size:17px;font-weight:600">`) +
-    card(2, 'ประเภท', `<div class="grid2" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">${cats.map(([k, l]) => `<button data-act="afSet" data-k="cat" data-v="${k}" style="border:none;border-radius:18px;padding:10px 2px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;font-weight:${a.cat === k ? 700 : 600};background:${a.cat === k ? '#FFF3B0;box-shadow:0 0 0 2px #FFD000' : 'var(--g)'}">${iconBox(CAT_ICON[k], 24, 40)}${l}</button>`).join('')}</div>`, '<span class="small mut">· ใช้เป็นไอคอน</span>') +
-    card(3, 'นับเป็น', `<div class="row" style="gap:6px;flex-wrap:wrap">${units.map((u) => `<button class="chip ${a.unit === u ? 'on' : ''}" data-act="afSet" data-k="unit" data-v="${u}">${u}</button>`).join('')}</div>`) +
-    card(4, 'ค่าต่อ 1 ' + esc(a.unit), `<div class="grid3" style="gap:8px">${num('k', 'kcal', true)}${num('p', 'Protein g')}${num('f', 'Fiber g')}</div>
-      <div class="seg"><button class="${a.src === 'label' ? 'on' : ''}" data-act="afSet" data-k="src" data-v="label">จากฉลาก</button><button class="${a.src === 'est' ? 'on' : ''}" data-act="afSet" data-k="src" data-v="est">ประมาณเอา</button></div>
+    card(2, 'ประเภท', `<div class="grid2" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">${cats.map(([k, l]) => `<button data-act="afSet" data-k="cat" data-v="${k}" style="border:none;border-radius:18px;padding:10px 2px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;font-weight:${a.cat === k ? 700 : 600};background:${a.cat === k ? '#FFF3B0;box-shadow:0 0 0 2px #FFD000' : 'var(--g)'}">${iconBox(CAT_ICON[k], 24, 40)}${l}</button>`).join('')}</div>`) +
+    card(3, 'ไอคอน', a.allIcons ? IG.map(([g, ks]) => `<span class="small" style="font-weight:700;color:var(--mut)">${g}</span><div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;justify-items:center">${ks.map(icBtn).join('')}</div>`).join('') + '<button class="link" data-act="afAllIcons">ย่อ</button>'
+      : `<div class="row" style="gap:8px">${quick.map(icBtn).join('')}<button class="chip" data-act="afAllIcons" style="margin-left:auto">ทั้งหมด ${allN} ›</button></div>`) +
+    (a.group ? card('·', 'อยู่ในกลุ่ม', `<span class="chip on" style="align-self:flex-start">${esc(a.group)}</span><span class="small mut">ค้นหา "${esc(a.group)}" แล้วเลือกยี่ห้อได้</span>`) : '') +
+    card(4, 'นับเป็น', `<div class="row" style="gap:6px;flex-wrap:wrap">${units.map((u) => `<button class="chip ${a.unit === u ? 'on' : ''}" data-act="afSet" data-k="unit" data-v="${u}">${u}</button>`).join('')}<button class="chip ${custom ? 'on' : ''}" data-act="afCustomUnit">${custom ? esc(a.unit) + ' ✎' : '+ พิมพ์เอง'}</button></div>${a.unitTyping ? `<input data-input="af.unit" value="${custom ? esc(a.unit) : ''}" placeholder="เช่น ลูก, แท่ง, ไม้" aria-label="หน่วยเอง" style="height:46px;border-radius:14px;border:2px solid #FFD000;padding:0 12px;font-size:16px">` : ''}`) +
+    card(5, isG ? 'พลังงาน ต่อ 100 กรัม' : 'พลังงาน ต่อ 1 ' + esc(a.unit), `<div class="grid3" style="gap:8px">${num('k', 'kcal', true)}${num('p', 'Protein g')}${num('f', 'Fiber g')}</div>
+      <div class="seg"><button class="${a.src === 'label' ? 'on' : ''}" data-act="afSet" data-k="src" data-v="label">จากฉลาก</button><button class="${a.src === 'est' ? 'on' : ''}" data-act="afSet" data-k="src" data-v="est">ใช้ค่าประมาณ</button></div>
       <span class="small mut">ไม่รู้ตัวเลข? ถามในแชทก่อน แล้วกรอกครั้งเดียว</span>`) +
-    card(5, 'ใช้เป็นของเติม', `<span class="small mut">ขึ้นในชุดแนะนำและหน้าเลือกเติมเอง</span>${a.addon ? `<div class="row" style="gap:6px;flex-wrap:wrap"><span class="small" style="font-weight:700;color:var(--mut)">ซื้อได้ที่</span>${['7-11', 'Lotus', 'ยิม'].map((x) => `<button class="chip ${a.stores.includes(x) ? 'on' : ''}" data-act="afStore" data-v="${x}">${a.stores.includes(x) ? '✓ ' : ''}${x}</button>`).join('')}</div>` : ''}`,
+    card(6, 'ใช้เป็นของเติม', `<span class="small mut">ขึ้นในชุดแนะนำและหน้าเลือกเติมเอง</span>${a.addon ? `<div class="row" style="gap:6px;flex-wrap:wrap"><span class="small" style="font-weight:700;color:var(--mut)">ซื้อได้ที่</span>${['7-11', 'Lotus', 'ยิม'].map((x) => `<button class="chip ${a.stores.includes(x) ? 'on' : ''}" data-act="afStore" data-v="${x}">${a.stores.includes(x) ? '✓ ' : ''}${x}</button>`).join('')}</div>` : ''}`,
       `<button role="switch" aria-checked="${a.addon}" aria-label="ใช้เป็นของเติม" data-act="afToggle" style="margin-left:auto;width:52px;height:32px;border-radius:16px;border:none;background:${a.addon ? '#FFD000' : '#DDD'};position:relative"><span style="position:absolute;${a.addon ? 'right' : 'left'}:3px;top:3px;width:26px;height:26px;border-radius:13px;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.2)"></span></button>`) +
-    `<div id="af-err" class="small" style="color:#B3261E;margin:10px 20px 0;min-height:16px"></div><div style="margin:6px 16px 0;display:flex;flex-direction:column;gap:6px"><button class="btn" data-act="afSave" data-eat="1">${a.id ? 'บันทึกการแก้ไข' : 'บันทึกเมนู + กินเลย 1 ' + esc(a.unit)}</button>${a.id ? '' : '<button class="link" data-act="afSave" data-eat="0">บันทึกเมนูอย่างเดียว ยังไม่กิน</button>'}</div></div>`;
+    `<div id="af-err" class="small" style="color:#B3261E;margin:10px 20px 0;min-height:16px"></div><div style="margin:6px 16px 0;display:flex;flex-direction:column;gap:6px"><button class="btn" data-act="afSave" data-eat="1">${a.id ? 'บันทึกการแก้ไข' : (a.back === 'build' ? 'บันทึก + ใส่ในจาน' : 'บันทึกเมนู + กินเลย ' + (isG ? '100 กรัม' : '1 ' + esc(a.unit)))}</button>${a.id ? '' : '<button class="link" data-act="afSave" data-eat="0">บันทึกเมนูอย่างเดียว ยังไม่กิน</button>'}</div></div>`;
 }
 
 function vLog() {
@@ -345,6 +347,7 @@ function vLog() {
 }
 
 function vWeek() {
+  if (S.ovMode === 'month') return vMonth();
   const mon = addDays(mondayOf(todayKey()), S.weekOff * 7); const days = [...Array(7)].map((_, i) => addDays(mon, i)); const today = todayKey();
   const lut = lutealDays();
   const dsel = S.dsel && days.includes(S.dsel) ? S.dsel : (days.includes(today) ? today : days[0]);
@@ -400,8 +403,8 @@ function vWeek() {
     <div class="row small mut" style="gap:12px;font-size:11px"><span class="row" style="gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:#FFD000"></span>ตามเป้า</span><span class="row" style="gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:#FF8A65"></span>เกินเป้า</span><span class="row" style="gap:4px"><span style="width:14px;border-top:2px dashed #BDBDBD"></span>เป้า</span></div></div>`;
   const wt = bodySeries('weight'); const wtNow = wt.length ? wt[wt.length - 1].weight : p.startWeight;
   const spark = wt.length >= 2 ? (() => { const v = wt.slice(-8).map((b) => b.weight); const mn = Math.min(...v), mx = Math.max(...v) || 1; return `<svg width="120" height="34" viewBox="0 0 120 34" aria-hidden="true" style="margin-left:auto"><polyline points="${v.map((x, i) => (4 + i * 112 / Math.max(1, v.length - 1)).toFixed(1) + ',' + (4 + (mx - x) / Math.max(0.1, mx - mn) * 26).toFixed(1)).join(' ')}" fill="none" stroke="#BDBDBD" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`; })() : '';
-  return hero('สัปดาห์นี้', thDate(days[0]) + ' – ' + thDate(days[6]), { pb: 62, right: `<span class="row" style="gap:6px"><button class="back" data-act="weekOff" data-d="-1" aria-label="สัปดาห์ก่อน" style="width:36px;height:36px">${chev('l', 16)}</button><span role="img" aria-label="ตามเป้า ${onT} จาก ${complete.length} วัน" style="background:#fff;border-radius:16px;padding:8px 10px;display:flex;gap:4px;box-shadow:0 6px 14px rgba(140,100,0,.15)">${dots}</span>${S.weekOff < 0 ? `<button class="back" data-act="weekOff" data-d="1" aria-label="สัปดาห์ถัดไป" style="width:36px;height:36px">${chev('r', 16)}</button>` : ''}</span>` }) +
-    chinCard + `<button class="card row" data-act="openRecap" data-mon="${mon}" style="border:none;width:calc(100% - 32px);margin-top:12px;gap:12px;text-align:left">${mascot('proud', 46)}<span style="flex:1"><b style="font-size:15px">สรุปสัปดาห์นี้</b><span class="small mut" style="display:block">จดครบ ${days.filter(LOGGED).length}/7 วัน · ดูการ์ด + บันทึกเป็นรูป</span></span>${chev('r', 16)}</button>` + chart + kcalCard +
+  return hero(ovToggle() + '<span style="display:block">' + (S.weekOff ? 'สัปดาห์ ' + thDate(days[0]) : 'สัปดาห์นี้') + '</span>', thDate(days[0]) + ' – ' + thDate(days[6]), { pb: 62, right: `<span class="row" style="gap:6px"><button class="back" data-act="weekOff" data-d="-1" aria-label="สัปดาห์ก่อน" style="width:36px;height:36px">${chev('l', 16)}</button><span role="img" aria-label="ตามเป้า ${onT} จาก ${complete.length} วัน" style="background:#fff;border-radius:16px;padding:8px 10px;display:flex;gap:4px;box-shadow:0 6px 14px rgba(140,100,0,.15)">${dots}</span>${S.weekOff < 0 ? `<button class="back" data-act="weekOff" data-d="1" aria-label="สัปดาห์ถัดไป" style="width:36px;height:36px">${chev('r', 16)}</button>` : ''}</span>` }) +
+    weekKcalCard(days) + periodCard() + chinCard + `<button class="card row" data-act="openRecap" data-mon="${mon}" style="border:none;width:calc(100% - 32px);margin-top:12px;gap:12px;text-align:left">${mascot('proud', 46)}<span style="flex:1"><b style="font-size:15px">สรุปสัปดาห์นี้</b><span class="small mut" style="display:block">จดครบ ${days.filter(LOGGED).length}/7 วัน · ดูการ์ด + บันทึกเป็นรูป</span></span>${chev('r', 16)}</button>` + chart +
     `<div class="card row" style="background:var(--g);box-shadow:none"><span><span class="small mut" style="display:block">น้ำหนัก (ดูประกอบ)</span><b style="font-size:16px">${r1(wtNow)} kg</b> ${wtNow < p.startWeight ? `<span class="small" style="font-weight:600;color:#2F6B45">▼ ${r1(p.startWeight - wtNow)}</span>` : ''}</span>${spark}</div>
     <div style="margin:12px 16px 0"><button class="btn" data-act="nav" data-to="weighin">วัดรอบเอว + ชั่งน้ำหนัก</button></div>` + nav();
 }
@@ -487,7 +490,8 @@ function sheetHtml() {
     const k = s.date || todayKey(); const v = s.v ?? String(activeOf(k) || '');
     const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'].map((x) => x ? `<button data-act="key" data-v="${x}" style="height:52px;border-radius:18px;border:none;background:var(--g);font-size:22px;font-weight:600" aria-label="${x === '⌫' ? 'ลบ' : x}">${x}</button>` : '<span></span>').join('');
     const credit = Math.round((Number(v) || 0) * db.profile.watchPct);
-    return wrap(`<div class="row">${iconBox('watch', 28, 48, 16)}<span style="flex:1"><b style="font-size:19px">เผาผลาญจาก Watch วันนี้</b><span class="small mut" style="display:block">ดูตัวเลข Active ในแอป Fitness แล้วกรอก</span></span>${closeBtn}</div>
+    const dtab = [-2, -1, 0].map((o) => { const d = addDays(todayKey(), o); return `<button data-act="watchDay" data-d="${d}" style="border:none;padding:8px 0;border-radius:14px;font-size:13px;font-weight:700;${d === k ? 'background:#fff;box-shadow:0 2px 6px rgba(31,31,31,.08)' : 'background:none;color:var(--mut)'}">${o === 0 ? 'วันนี้' : o === -1 ? 'เมื่อวาน' : thDate(d)}</button>`; }).join('');
+    return wrap(`<div class="grid3" style="gap:4px;background:var(--g);border-radius:18px;padding:4px">${dtab}</div><div class="row">${iconBox('watch', 28, 48, 16)}<span style="flex:1"><b style="font-size:19px">เผาผลาญจาก Watch ${k === todayKey() ? 'วันนี้' : k === addDays(todayKey(), -1) ? 'เมื่อวาน' : thDate(k)}</b><span class="small mut" style="display:block">ดูตัวเลข Active ในแอป Fitness แล้วกรอก</span></span>${closeBtn}</div>
       <div style="text-align:center"><b style="font-size:52px">${v || '0'}</b> <span class="mut">kcal</span></div>
       <div><div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--g)"><span style="width:${db.profile.watchPct * 100}%;background:var(--y)"></span></div><div class="row small mut" style="justify-content:space-between;margin-top:6px"><span><b style="color:var(--ink)">+${credit}</b> เข้าโควต้าวันนี้ (${Math.round(db.profile.watchPct * 100)}%)</span><span>เผื่อ Watch นับเกิน</span></div></div>
       <div class="grid3" style="gap:8px">${keys}</div><button class="btn" data-act="watchSave">บันทึก</button>`);
@@ -503,6 +507,23 @@ function sheetHtml() {
   if (s.type === 'bucket') {
     return wrap(`<div class="row"><b style="flex:1;font-size:19px">ไม่รู้ kcal · เลือกขนาด</b>${closeBtn}</div><span class="small mut">ตั้งสูงไว้เล็กน้อย เพราะคนมักประเมินอาหารร้านต่ำกว่าจริง · บันทึกเป็นค่าประมาณ</span>
       ${[['out', 'มื้อนอกบ้าน', 'main'], ['snack', 'ขนม / ของว่าง', 'snack']].map(([k, l, ic]) => `<b style="font-size:14px">${l}</b><div class="grid3">${BUCKETS[k].map(([n, v], i) => `<button data-act="bucketLog" data-k="${k}" data-v="${v}" data-n="${n}" style="border:none;border-radius:18px;background:${['#FFF8D6', '#FFF3B0', '#FFE88A'][i]};padding:12px 4px;display:flex;flex-direction:column;align-items:center;gap:4px">${svgI(ic, 22 + i * 6)}<b>${n}</b><span class="small">${v}</span></button>`).join('')}</div>`).join('')}`);
+  }
+  if (s.type === 'group') {
+    const fs = db.foods.filter((f) => !f.deleted && f.group === s.g).sort((a, b) => (b.lastUsed || '').localeCompare(a.lastUsed || ''));
+    return wrap(`<div class="row">${iconBox(fs[0] ? fs[0].icon : 'milk', 26, 46, 23)}<span style="flex:1"><b style="font-size:19px;display:block">${esc(s.g)}</b><span class="small mut">เลือกยี่ห้อ/แบบ · อันที่ใช้ล่าสุดอยู่บน</span></span>${closeBtn}</div>
+      <div style="border-radius:20px;overflow:hidden;border:1px solid #F2EEE6">${fs.map((f, i) => { const n = nutr(f); return `<button data-act="groupPick" data-id="${f.id}" style="border:none;background:${i === 0 ? '#FFF8D6' : '#fff'};width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #F2EEE6;text-align:left"><span style="flex:1"><b style="font-size:15px">${esc(f.name)}</b>${i === 0 && f.lastUsed ? ' <span style="font-size:11px;background:var(--y);border-radius:8px;padding:1px 6px">ล่าสุด</span>' : ''}<span class="small mut" style="display:block">${n ? fmt(n.k) + ' kcal · P ' + Math.round(n.p) + ' g' : 'ยังไม่มีค่าฉลาก'}</span></span><span class="ic" style="width:36px;height:36px;border-radius:18px;background:var(--y);font-size:18px;font-weight:700">+</span></button>`; }).join('')}
+        <button data-act="groupNew" data-g="${esc(s.g)}" style="border:none;background:#fff;width:100%;min-height:50px;font-size:14px;font-weight:700;color:#6B5A00">+ เพิ่มยี่ห้อใหม่ (กรอกจากฉลาก)</button></div>`);
+  }
+  if (s.type === 'periodDay') {
+    const has = periodDays().has(s.date); const isStart = db.periods.includes(s.date);
+    return wrap(`<div class="row"><span class="ic" style="width:44px;height:44px;border-radius:22px;background:#FBE3EA">${DROP(22, '#FF8FA8')}</span><span style="flex:1"><b style="font-size:18px;display:block">${thDate(s.date)}</b><span class="small mut">${has ? 'บันทึกว่ามีประจำเดือน' : 'ยังไม่ได้บันทึก'}</span></span>${closeBtn}</div>
+      ${has ? `${isStart ? '' : `<button class="btn w" data-act="periodEndAt" data-d="${s.date}">ให้วันนี้เป็นวันสุดท้าย</button>`}<button class="btn danger" data-act="periodRemove" data-d="${s.date}">ลบรอบนี้ออก</button>` : `<button class="btn" data-act="periodStartAt" data-d="${s.date}" style="background:#FF8FA8;color:#fff">เริ่มมีประจำเดือนวันนี้</button>`}`);
+  }
+  if (s.type === 'rebase') {
+    return wrap(`<div class="row">${mascot('proud', 56)}<span style="flex:1"><b style="font-size:19px;display:block">น้ำหนักเปลี่ยนไป ${r1(Math.abs(s.w - s.old))} kg</b><span class="small mut">คำนวณเป้าใหม่จากน้ำหนักล่าสุด</span></span>${closeBtn}</div>
+      <div class="row" style="gap:10px;justify-content:center"><div style="text-align:center"><span class="small mut">เป้าเดิม</span><b style="display:block;font-size:24px;color:var(--mut)">${fmt(s.from)}</b></div><span style="font-size:22px">→</span><div style="text-align:center"><span class="small mut">เป้าใหม่</span><b style="display:block;font-size:32px">${fmt(s.to)}</b></div></div>
+      <span class="small mut" style="text-align:center;line-height:1.5">โปรตีนเปลี่ยนเป็น ${Math.round(protPerKg() * s.w)} g/วัน · ยังบวก Watch ทุกวันเหมือนเดิม</span>
+      <button class="btn" data-act="rebaseYes">ใช้เป้าใหม่</button><button class="link" data-act="close">ยังไม่เปลี่ยน</button>`);
   }
   if (s.type === 'label') {
     const f = foodById(s.id || s.foodId);
@@ -823,12 +844,174 @@ function widgetSheet(closeBtn) {
     <span class="small mut" style="line-height:1.5">widget อัปเดตเองทุก 20–60 นาที (iOS เป็นคนกำหนด) · ตัวเลขมาจากครั้งล่าสุดที่แอปซิงก์</span>`;
 }
 
+/* ================= v6: plates · builder · groups · overview · period ================= */
+const resolveFood = (id) => foodById(id) || mealFoods().find((m) => m.id === id) || null;
+const PLATE_POS = { 1: [[50, 50, 32]], 2: [[33, 50, 24], [67, 50, 24]], 3: [[50, 31, 21], [31, 65, 21], [69, 65, 21]], 4: [[32, 32, 19], [68, 32, 19], [32, 68, 19], [68, 68, 19]] };
+function plateSvg(icons, px = 62) {
+  const n = Math.min(4, icons.length); const pos = PLATE_POS[n] || PLATE_POS[1];
+  const inner = pos.map(([cx, cy, sz], i) => { const s = sz * px / 64; const ic = ICONS[icons[i]] || ICONS.main; return `<svg width="${s.toFixed(0)}" height="${s.toFixed(0)}" viewBox="0 0 24 24" style="position:absolute;left:${(cx * px / 100 - s / 2).toFixed(0)}px;top:${(cy * px / 100 - s / 2).toFixed(0)}px" aria-hidden="true">${ic[1]}</svg>`; }).join('');
+  return `<span style="position:relative;width:${px}px;height:${px}px;border-radius:${px / 2}px;background:#fff;box-shadow:inset 0 0 0 4px #FFF3B0,0 3px 8px rgba(160,120,0,.18);flex-shrink:0;display:block">${inner}</span>`;
+}
+const plateKey = (items) => items.map((i) => i.foodId + 'x' + (i.grams || i.qty)).sort().join('|');
+function plateNutr(items) { return items.reduce((a, i) => { const f = resolveFood(i.foodId); const n = f ? (f.kind === 'sized' ? nutr(f, { grams: i.grams }) : nutr(f, { qty: i.qty })) : null; return n ? { k: a.k + n.k, p: a.p + n.p, f: a.f + n.f } : a; }, { k: 0, p: 0, f: 0 }); }
+function savePlate(items, slot) {
+  if (!items.length) return; db.plates = db.plates || []; const key = plateKey(items);
+  let pl = db.plates.find((x) => x.key === key);
+  if (!pl) { pl = { id: uid(), userId: db.userId, key, items: items.map((i) => ({ foodId: i.foodId, qty: i.qty, grams: i.grams || null })), uses: 0, slots: {}, createdAt: new Date().toISOString(), schemaVersion: 1 }; db.plates.push(pl); }
+  pl.uses++; pl.slots[slot] = (pl.slots[slot] || 0) + 1; pl.lastUsed = new Date().toISOString();
+}
+function homePlates(slot) {
+  const ok = (db.plates || []).filter((p) => !p.hidden && p.items.every((i) => resolveFood(i.foodId)));
+  const sorted = ok.sort((a, b) => ((b.slots[slot] || 0) * 3 + b.uses) - ((a.slots[slot] || 0) * 3 + a.uses) || (b.lastUsed || '').localeCompare(a.lastUsed || ''));
+  const out = sorted.slice(0, 3).map((p) => ({ plate: p }));
+  for (const m of mealFoods()) { if (out.length >= 3) break; if (!out.some((o) => o.plate && o.plate.items.length === 1 && o.plate.items[0].foodId === m.id)) out.push({ meal: m }); }
+  return out.slice(0, 3);
+}
+function plateCard(o) {
+  const items = o.plate ? o.plate.items : [{ foodId: o.meal.id, qty: 1 }];
+  const foods = items.map((i) => resolveFood(i.foodId)); const n = plateNutr(items);
+  const name = foods.length === 1 ? foods[0].name : foods.map((f) => f.name.split(' ')[0]).join(' ');
+  const id = o.plate ? o.plate.id : 'meal:' + o.meal.id;
+  return `<button data-act="plateLog" data-id="${esc(id)}" aria-label="บันทึก ${esc(name)}" style="border:none;border-radius:24px;background:#fff;box-shadow:0 6px 18px rgba(31,31,31,.07);padding:12px 6px 10px;display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;min-width:0">
+    <span style="width:74px;height:74px;border-radius:37px;background:#FFF8D6;display:flex;align-items:center;justify-content:center">${plateSvg(foods.map((f) => f.icon))}</span>
+    <span style="font-size:13px;font-weight:700;margin-top:4px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px">${esc(name)}</span>
+    <span class="small mut" style="font-size:11px">${foods.length > 1 ? foods.length + ' อย่าง · ' : ''}${fmt(n.k)} kcal</span>
+    <span class="ic" style="position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:12px;background:var(--y);font-size:15px;font-weight:700">+</span></button>`;
+}
+function logItems(items, slot, date) {
+  const miss = items.map((i) => resolveFood(i.foodId)).find((f) => f && f.kind !== 'sized' && !nutr(f)); if (miss) { openSheet({ type: 'label', foodId: miss.id }); return null; }
+  const out = []; for (const i of items) { const f = resolveFood(i.foodId); if (!f) continue; const e = addEntry(f, { qty: i.qty, grams: i.grams || undefined, slot, date }); if (e) out.push(e); else return null; }
+  return out;
+}
+
+/* ---- builder ---- */
+function freqFoods(n = 8) {
+  const own = db.foods.filter((f) => !f.deleted && nutr(f)).sort((a, b) => (b.uses || 0) - (a.uses || 0) || (b.lastUsed || '').localeCompare(a.lastUsed || ''));
+  const list = [...own.slice(0, n)]; for (const m of mealFoods()) { if (list.length >= n) break; list.push(m); }
+  return list.slice(0, n);
+}
+function trayAdd(id) { const f = resolveFood(id); if (!f) return; if (!nutr(f) && f.kind !== 'sized') { openSheet({ type: 'label', foodId: f.id, thenTray: true }); return; } S.tray = S.tray || []; const t = S.tray.find((x) => x.foodId === id); if (t) { if (f.kind === 'sized') t.grams += f.def; else t.qty++; } else S.tray.push({ foodId: id, qty: 1, grams: f.kind === 'sized' ? f.def : null }); }
+function searchGrouped(q) {
+  const found = searchFoods(q); const groups = {}; const singles = [];
+  found.forEach((f) => { if (f.group) (groups[f.group] = groups[f.group] || []).push(f); else singles.push(f); });
+  const gs = Object.entries(groups).map(([g, fs]) => fs.length > 1 ? { group: g, foods: fs } : null).filter(Boolean);
+  Object.values(groups).forEach((fs) => { if (fs.length === 1) singles.unshift(fs[0]); });
+  db.foods.filter((f) => f.group && !f.deleted && f.group.toLowerCase().includes(q.trim().toLowerCase()) && !gs.some((g) => g.group === f.group)).forEach((f) => { const g = gs.find((x) => x.group === f.group); if (g) g.foods.push(f); else gs.push({ group: f.group, foods: [f] }); });
+  return { groups: gs, singles: singles.filter((f) => !gs.some((g) => g.foods.includes(f))) };
+}
+function builderResults() {
+  const q = (S.bq || '').trim(); const tray = S.tray || [];
+  const tile = (f) => { const on = tray.some((t) => t.foodId === f.id); const n = nutr(f, f.kind === 'sized' ? { grams: f.def } : {});
+    return `<button data-act="trayAdd" data-id="${esc(f.id)}" style="border:none;border-radius:20px;background:${on ? '#FFF8D6;box-shadow:0 0 0 2.5px #FFD000' : '#fff;box-shadow:0 4px 12px rgba(31,31,31,.07)'};padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;position:relative;min-width:0">${iconBox(f.icon, 24, 42, 21)}<span style="font-size:12px;font-weight:700;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 3px">${esc(f.name)}</span><span style="font-size:10px;color:var(--mut)">${n ? fmt(n.k) : '?'}</span>${on ? '<span class="ic" style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:10px;background:var(--y);font-size:11px;font-weight:700">✓</span>' : ''}</button>`; };
+  if (!q) return `<span class="small" style="font-weight:700;color:var(--mut)">ชิ้นที่ใช้บ่อย · แตะใส่จาน</span><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">${freqFoods(8).map(tile).join('')}</div>`;
+  const { groups, singles } = searchGrouped(q);
+  const row = (f) => { const n = nutr(f, f.kind === 'sized' ? { grams: f.def } : {}); return `<button data-act="${f._db ? 'dbTray' : 'trayAdd'}" data-id="${esc(f.id)}" style="border:none;background:#fff;width:100%;display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid #F2EEE6;text-align:left">${iconBox(f.icon, 26, 44, 22)}<span style="flex:1;min-width:0"><b style="display:block;font-size:15px">${esc(f.name)}</b><span class="small mut">${n ? fmt(n.k) + ' kcal · ' + (f.kind === 'sized' ? f.def + ' g' : '1 ' + esc(f.unit || '')) : 'ยังไม่มีค่าฉลาก'}${f._db || f.src === 'est' ? ' · ประมาณ' : ''}</span></span><span class="ic" style="width:36px;height:36px;border-radius:18px;background:var(--y);font-size:18px;font-weight:700">+</span></button>`; };
+  const grow = (g) => `<button data-act="groupOpen" data-g="${esc(g.group)}" style="border:none;background:#fff;width:100%;display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid #F2EEE6;text-align:left">${iconBox(g.foods[0].icon, 26, 44, 22)}<span style="flex:1"><b style="display:block;font-size:15px">${esc(g.group)}</b><span class="small mut">เลือกยี่ห้อ/แบบ</span></span><span class="badge" style="background:var(--yl);font-size:12px">${g.foods.length} แบบ ›</span></button>`;
+  const create = `<button data-act="buildCreate" style="border:1.5px dashed #D8D2BE;background:#fff;border-radius:18px;min-height:44px;font-size:13px;font-weight:700;color:#6B5A00">+ ไม่เจอ? สร้าง "${esc(q)}" ใหม่ (ครั้งเดียว)</button>`;
+  if (!groups.length && !singles.length) { const comp = parseComposite(q); return (comp ? `<button data-act="buildComp" style="border:none;border-radius:18px;background:var(--yll);min-height:48px;padding:0 14px;font-size:14px;font-weight:700;text-align:left">แยกเป็นเมนูผสม: ${comp.parts.map((p) => esc(p.name)).join(' + ')} ›</button>` : '<span class="small mut">ยังไม่มีในระบบ</span>') + create; }
+  return (groups.length ? `<span class="small" style="font-weight:700;color:var(--mut)">กลุ่ม</span><div class="card" style="margin:0;padding:0;overflow:hidden">${groups.map(grow).join('')}</div>` : '') +
+    (singles.length ? `<div class="card" style="margin:0;padding:0;overflow:hidden">${singles.slice(0, 10).map(row).join('')}</div>` : '') + create;
+}
+function vBuild() {
+  const tray = S.tray || []; const slot = S.bslot || slotNow(); const n = plateNutr(tray); const left = goalOf(S.bdate || todayKey()) - totals(S.bdate || todayKey()).k - n.k;
+  const chips = tray.map((t, i) => { const f = resolveFood(t.foodId); return `<span style="display:inline-flex;align-items:center;gap:4px;background:#fff;border-radius:18px;padding:3px 4px 3px 3px">${iconBox(f.icon, 16, 28, 14)}<span style="font-size:13px;font-weight:700;max-width:96px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(f.name)}</span><button data-act="trayQ" data-i="${i}" data-d="-1" aria-label="ลด" style="border:none;width:22px;height:22px;border-radius:11px;background:var(--g);font-weight:700">−</button><b style="font-size:12px;min-width:18px;text-align:center">${f.kind === 'sized' ? t.grams + 'g' : t.qty}</b><button data-act="trayQ" data-i="${i}" data-d="1" aria-label="เพิ่ม" style="border:none;width:22px;height:22px;border-radius:11px;background:var(--y);font-weight:700">+</button></span>`; }).join('');
+  const slots = SLOTS.map((s) => `<button data-act="bslot" data-v="${s.id}" style="border:none;padding:5px 9px;border-radius:14px;font-size:12px;font-weight:700;${s.id === slot ? 'background:var(--y)' : 'background:var(--g);color:var(--mut)'}">${s.name}</button>`).join('');
+  return topBar('ประกอบจาน', S.bdate && S.bdate !== todayKey() ? 'บันทึกลง ' + thDate(S.bdate) : 'แตะของที่กิน แล้วกดบันทึกครั้งเดียว', S.bback || 'today') +
+    `<div style="margin:0 16px;display:flex;gap:4px;flex-wrap:wrap">${slots}</div>
+    <div style="margin:10px 16px 0;border-radius:22px;background:var(--yll);padding:10px;display:flex;align-items:center;gap:10px;min-height:56px">${tray.length ? plateSvg(tray.map((t) => resolveFood(t.foodId).icon), 52) : `<span style="opacity:.45">${plateSvg([], 52)}</span>`}<div style="flex:1;display:flex;flex-wrap:wrap;gap:6px">${chips || '<span class="small mut">จานยังว่าง · แตะของด้านล่างเพื่อใส่</span>'}</div></div>
+    <div style="margin:10px 16px 0;position:relative"><label class="sr" for="bq">ค้นหาอาหาร</label><input id="bq" class="search" style="height:50px" placeholder="พิมพ์ค้นหา เช่น ไรซ์, นม, กะเพรา" value="${esc(S.bq || '')}" autocomplete="off" data-input="bq"></div>
+    <div id="bres" style="margin:12px 16px 0;display:flex;flex-direction:column;gap:8px;padding-bottom:110px">${builderResults()}</div>
+    <div style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:#fff;border-radius:28px 28px 0 0;padding:12px 16px calc(18px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:12px;box-shadow:0 -6px 20px rgba(31,31,31,.08);z-index:20">
+      <span style="flex:1"><span class="small mut" style="display:block">${tray.length} อย่าง · ${SLOTS.find((s) => s.id === slot).name}</span><b style="font-size:18px">${fmt(n.k)} kcal</b> <span class="small mut">· เหลือ ${fmt(left)}</span></span>
+      <button class="btn" style="width:auto;padding:0 28px" data-act="traySave" ${tray.length ? '' : 'disabled style="opacity:.4;width:auto;padding:0 28px"'}>บันทึก</button></div>`;
+}
+function refreshBuild() { const r = document.getElementById('bres'); if (r) r.innerHTML = builderResults(); }
+
+/* ---- period ---- */
+function periodDays() { const set = new Set(); const ends = db.periodEnds || {}; [...db.periods].sort().forEach((s) => { const now = periodNow(); const e = ends[s] || (now && now.start === s ? todayKey() : addDays(s, 4)); let d = s; for (let i = 0; i < 10 && d <= e; i++) { set.add(d); d = addDays(d, 1); } }); return set; }
+function periodNow() { const t = todayKey(); const last = [...db.periods].sort().filter((s) => s <= t).pop(); if (!last) return null; if ((db.periodEnds || {})[last]) return null; const n = daysBetween(last, t); return n >= 0 && n <= 6 ? { start: last, day: n + 1 } : null; }
+function periodNext() { const ps = [...db.periods].sort(); if (!ps.length) return null; const gaps = ps.slice(1).map((d, i) => daysBetween(ps[i], d)).filter((g) => g >= 21 && g <= 40); const cyc = gaps.length ? Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length) : 28; return addDays(ps[ps.length - 1], cyc); }
+const DROP = (px = 12, c = '#FF5C85') => `<svg width="${px}" height="${px}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c3 4.5 6 7.8 6 11a6 6 0 0 1-12 0c0-3.2 3-6.5 6-11z" fill="${c}"/></svg>`;
+function periodCard() {
+  const now = periodNow(); const last = [...db.periods].sort().pop(); const nx = periodNext();
+  const sub = (last ? 'รอบล่าสุด ' + thDate(last) : 'ยังไม่เคยบันทึก') + (nx ? ' · รอบหน้า ~' + thDate(nx) : '');
+  const head = `<div class="row" style="gap:10px"><span class="ic" style="width:40px;height:40px;border-radius:20px;background:#FBE3EA">${DROP(20, '#FF8FA8')}</span><span style="flex:1"><b style="font-size:15px;display:block">${now ? 'ประจำเดือน วันที่ ' + now.day : 'ประจำเดือน'}</b><span class="small mut">${sub}</span></span>${now ? '<button data-act="periodEnd" style="height:40px;padding:0 14px;border:none;border-radius:20px;background:#FBE3EA;color:#A33A5A;font-size:13px;font-weight:700">หมดแล้ว</button>' : ''}</div>`;
+  const btns = now ? '' : `<div class="grid2" style="grid-template-columns:1.3fr 1fr;gap:8px"><button data-act="periodStart" style="height:44px;border:none;border-radius:22px;background:#FF8FA8;color:#fff;font-size:14px;font-weight:700">มาวันนี้</button><label style="height:44px;border-radius:22px;background:#FBE3EA;color:#A33A5A;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">เลือกวันที่มา<input type="date" data-change="periodPick" max="${todayKey()}" style="position:absolute;inset:0;opacity:0"></label></div>`;
+  return `<div class="card" style="display:flex;flex-direction:column;gap:10px">${head}${btns}<span class="small mut" style="text-align:center;font-size:11px">แตะวันในกราฟเพื่อแก้วันที่มีประจำเดือน</span></div>`;
+}
+
+/* ---- overview: week ---- */
+function ovToggle() { const m = S.ovMode === 'month'; return `<div class="row" style="background:#fff;border-radius:18px;padding:3px;gap:2px;align-self:flex-start;position:relative;margin-bottom:6px"><button data-act="ovMode" data-v="week" style="border:none;padding:6px 14px;border-radius:15px;font-size:13px;font-weight:700;${m ? 'background:none;color:#5E5E5E' : 'background:rgba(31,31,31,.07)'}">สัปดาห์</button><button data-act="ovMode" data-v="month" style="border:none;padding:6px 14px;border-radius:15px;font-size:13px;font-weight:700;${m ? 'background:rgba(31,31,31,.07)' : 'background:none;color:#5E5E5E'}">เดือน</button></div>`; }
+function weekKcalCard(days) {
+  const today = todayKey(); const pdays = periodDays(); const H = 140;
+  const done = days.filter((d) => d < today && entriesOn(d).length); const inT = done.filter((d) => totals(d).k <= goalOf(d)).length;
+  const avg = done.length ? done.reduce((a, d) => a + totals(d).k, 0) / done.length : 0;
+  const mx = Math.max(1800, ...days.map((d) => totals(d).k));
+  const names = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'];
+  const cols = days.map((d, i) => { const k = totals(d).k; const has = entriesOn(d).length > 0; const over = has && d < today && k > goalOf(d); const isT = d === today; const per = pdays.has(d);
+    const col = !has ? 'transparent' : isT ? '#FFE88A' : over ? '#FF8A65' : '#FFD000'; const h = has ? Math.max(6, Math.round(k / mx * H)) : 0;
+    return `<button data-act="dayPeriod" data-d="${d}" aria-label="${thDate(d)} ${has ? fmt(k) + ' kcal' : 'ไม่ได้จด'}" style="flex:1;border:none;background:${per ? '#FDE7EE' : 'none'};border-radius:12px;padding:6px 0;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0">
+      <span style="height:12px">${per ? DROP() : ''}</span>
+      <span style="height:${H}px;width:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px">${has ? `<span style="font-size:10px;font-weight:700;color:${over ? '#C2522E' : '#5E5E5E'}">${fmt(k)}</span>` : (d < today && d >= db.profile.startDate ? '<span style="font-size:10px;color:#B0ABA0">–</span>' : '')}<span style="width:24px;height:${h}px;border-radius:9px 9px 5px 5px;background:${col}"></span></span>
+      <span style="font-size:12px;font-weight:700;color:${isT ? 'var(--ink)' : 'var(--mut)'}">${names[i]}</span></button>`; }).join('');
+  const stat = (big, small, bg) => `<div style="flex:1;background:${bg};border-radius:18px;padding:10px 12px"><b style="font-size:22px;display:block;line-height:1.1">${big}</b><span class="small mut" style="font-size:11px">${small}</span></div>`;
+  const leg = (c, t) => `<span class="row" style="gap:5px"><span style="width:12px;height:12px;border-radius:4px;background:${c}"></span>${t}</span>`;
+  return `<div class="card" style="padding:12px 10px;display:flex;flex-direction:column;gap:10px">
+    <div class="row" style="gap:8px;padding:0 2px">${stat(done.length ? inT + ' / ' + done.length + ' วัน' : '–', 'กินอยู่ในเป้า', 'var(--yll)')}${stat(avg ? fmt(avg) : '–', 'kcal เฉลี่ยต่อวัน', 'var(--g)')}</div>
+    <div class="row" style="gap:2px;align-items:stretch">${cols}</div>
+    <div class="row small mut" style="gap:14px;font-size:11px;padding:8px 4px 0;border-top:1px solid #F2EEE6;flex-wrap:wrap">${leg('#FFD000', 'ในเป้า')}${leg('#FF8A65', 'เกินเป้า')}${leg('#FDE7EE', 'มีประจำเดือน')}</div></div>`;
+}
+
+/* ---- overview: month ---- */
+function vMonth() {
+  const today = todayKey(); const base = new Date(); base.setDate(1); base.setMonth(base.getMonth() + (S.monOff || 0));
+  const Y = base.getFullYear(), M = base.getMonth() + 1; const ym = Y + '-' + pad(M); const first = ym + '-01'; const nDays = new Date(Y, M, 0).getDate(); const last = ym + '-' + pad(nDays);
+  const off = (parseKey(first).getDay() + 6) % 7; const pdays = periodDays();
+  const all = [...Array(nDays)].map((_, i) => ym + '-' + pad(i + 1));
+  const done = all.filter((d) => d < today && entriesOn(d).length); const inT = done.filter((d) => totals(d).k <= goalOf(d)).length;
+  const avg = done.length ? done.reduce((a, d) => a + totals(d).k, 0) / done.length : 0;
+  const wIn = bodySeries('waist').filter((b) => b.date >= first && b.date <= last); const wBefore = bodySeries('waist').filter((b) => b.date < first);
+  const startW = wBefore.length ? wBefore[wBefore.length - 1].waist : (wIn[0] && wIn[0].waist); const endW = wIn.length ? wIn[wIn.length - 1].waist : null;
+  const wd = endW != null && startW != null && (wBefore.length || wIn.length > 1) ? r1(endW - startW) : null;
+  const cells = '<span></span>'.repeat(off) + all.map((d, i) => { const has = entriesOn(d).length > 0; const isT = d === today;
+    const st = d > today || d < db.profile.startDate ? 'background:transparent;color:#B0ABA0' : isT ? 'background:#FFE88A;box-shadow:inset 0 0 0 2px #1F1F1F' : !has ? 'background:#F1EEE6;color:#8A8A8A' : totals(d).k > goalOf(d) ? 'background:#FF8A65;color:#fff' : 'background:#FFD000';
+    return `<button data-act="dayPeriod" data-d="${d}" aria-label="${thDate(d)}" style="border:none;width:38px;height:38px;border-radius:12px;${st};font-size:13px;font-weight:700;justify-self:center;position:relative;padding:0">${i + 1}${pdays.has(d) ? `<span class="ic" style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:9px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.15)">${DROP(12)}</span>` : ''}</button>`; }).join('');
+  // weeks
+  const weeks = []; let wk = mondayOf(first); while (wk <= last) { weeks.push(wk); wk = addDays(wk, 7); }
+  const tiles = weeks.slice(0, 5).map((m, i) => { const ds = [...Array(7)].map((_, j) => addDays(m, j)).filter((d) => d >= first && d <= last && d < today && entriesOn(d).length);
+    if (!ds.length) return `<div style="flex:1;border:2px dashed #E8E4D8;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#B0ABA0;font-size:11px;font-weight:700;min-height:120px"><span>W${i + 1}</span>${m > today ? 'ยังไม่ถึง' : 'ไม่มีข้อมูล'}</div>`;
+    const a = ds.reduce((s, d) => s + totals(d).k, 0) / ds.length; const g = ds.reduce((s, d) => s + goalOf(d), 0) / ds.length; const over = a > g;
+    return `<div style="flex:1;background:${over ? '#FFE6E0' : '#FFF3B0'};border-radius:20px;padding:10px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0"><span style="font-size:11px;font-weight:700;color:var(--mut)">W${i + 1}</span><span class="ic" style="width:50px;height:50px;border-radius:25px;background:#fff;margin:2px 0">${mascot(over ? 'calm' : 'yay', 42)}</span><b style="font-size:16px">${fmt(a)}</b><span style="font-size:10px;font-weight:700;color:${over ? '#C2522E' : '#2F6B45'}">${over ? 'เกิน ' + fmt(a - g) : 'ในเป้า ✓'}</span></div>`; }).join('');
+  const stat = (big, small, bg) => `<div style="flex:1;background:${bg};border-radius:18px;padding:10px 12px;min-width:0"><b style="font-size:19px;display:block;line-height:1.15">${big}</b><span class="small mut" style="font-size:11px">${small}</span></div>`;
+  const leg = (sw, t) => `<span class="row" style="gap:5px">${sw}${t}</span>`; const sq = (c) => `<span style="width:12px;height:12px;border-radius:4px;background:${c}"></span>`;
+  const canPrev = ym > db.profile.startDate.slice(0, 7); const canNext = (S.monOff || 0) < 0;
+  return hero(ovToggle() + '<span style="display:block">' + ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'][M - 1] + '</span>', String(Y + 543), { pb: 40, right: `<span class="row" style="gap:6px"><button class="back" data-act="monOff" data-d="-1" ${canPrev ? '' : 'disabled style="opacity:.35"'} aria-label="เดือนก่อน">${chev('l', 18)}</button><button class="back" data-act="monOff" data-d="1" ${canNext ? '' : 'disabled style="opacity:.35"'} aria-label="เดือนถัดไป">${chev('r', 18)}</button></span>` }) +
+    `<div class="row" style="margin:-22px 16px 0;gap:8px;position:relative">${stat(done.length ? inT + ' / ' + done.length : '–', 'วันที่อยู่ในเป้า', '#FFF8D6;box-shadow:0 6px 18px rgba(31,31,31,.07)')}${stat(avg ? fmt(avg) : '–', 'kcal เฉลี่ย/วัน', '#fff;box-shadow:0 6px 18px rgba(31,31,31,.07)')}${stat(wd == null ? '–' : (wd > 0 ? '+' : wd < 0 ? '−' : '') + Math.abs(wd), wd == null ? 'ยังไม่ได้วัดเอว' : 'cm รอบเอว', '#E7F4EA;box-shadow:0 6px 18px rgba(31,31,31,.07)')}</div>
+    <div class="card" style="padding:12px 10px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));font-size:11px;font-weight:700;color:#8A8A8A;text-align:center">${['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'].map((x) => `<span>${x}</span>`).join('')}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));row-gap:6px">${cells}</div>
+      <div class="row small mut" style="flex-wrap:wrap;gap:6px 12px;font-size:11px;padding:8px 4px 0;border-top:1px solid #F2EEE6">${leg(sq('#FFD000'), 'ในเป้า')}${leg(sq('#FF8A65'), 'เกินเป้า')}${leg(sq('#F1EEE6'), 'ไม่ได้จด')}${leg(DROP(13), 'มีประจำเดือน')}</div></div>
+    <div class="card" style="display:flex;flex-direction:column;gap:8px"><div class="row" style="justify-content:space-between"><b style="font-size:14px">แต่ละสัปดาห์คุมได้ไหม</b><span class="small mut" style="font-size:11px">kcal เฉลี่ย/วัน</span></div><div class="row" style="gap:8px;align-items:stretch">${tiles}</div></div>
+    ${periodCard()}` + nav();
+}
+
+function todayBody() {
+  const k = todayKey(); const slot = slotNow(); const sname = SLOTS.find((s) => s.id === slot).name; const y = addDays(k, -1);
+  const watchMiss = !S.hideWatch && y >= db.profile.startDate && entriesOn(y).length && !db.activity[y];
+  const wcard = watchMiss ? `<div class="card row" style="margin-top:10px;background:var(--lav);box-shadow:none;gap:10px;padding:10px 12px"><span class="ic" style="width:34px;height:34px;border-radius:17px;background:#fff">${svgI('watch', 20)}</span><button data-act="watchOpen" data-date="${y}" style="flex:1;border:none;background:none;text-align:left;padding:0"><b style="font-size:13px;display:block">เมื่อวานยังไม่ได้กรอก Watch</b><span class="small mut" style="font-size:11px">แตะเพื่อกรอก · เพิ่มโควต้าให้เมื่อวาน</span></button><button data-act="hideWatch" aria-label="ซ่อน" style="border:none;background:none;padding:6px">${xIcon}</button></div>` : '';
+  const t = totals(k); const cnt = entriesOn(k).length;
+  return wcard + `<div class="row" style="margin:12px 20px 0;justify-content:space-between;align-items:baseline"><b style="font-size:17px">มื้อ${sname}กินอะไร?</b><span class="small mut">แตะ = บันทึกทั้งจาน</span></div>
+    <div class="grid3" style="margin:10px 16px 0;gap:10px">${homePlates(slot).map(plateCard).join('')}</div>
+    <button data-act="openBuild" style="margin:12px 16px 0;width:calc(100% - 32px);height:54px;border:none;border-radius:27px;background:#fff;box-shadow:0 6px 18px rgba(31,31,31,.08);display:flex;align-items:center;gap:10px;padding:0 8px 0 18px;color:#8A8A8A;font-size:15px;text-align:left"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg><span style="flex:1">ไม่ใช่จานพวกนี้? ค้นหา / ประกอบจาน</span><span class="ic" style="width:40px;height:40px;border-radius:20px;background:var(--y);font-size:22px;font-weight:700;color:var(--ink)">+</span></button>
+    <button data-act="openLog" data-date="${k}" style="margin:10px 18px 0;width:calc(100% - 36px);border:none;background:var(--g);border-radius:22px;min-height:48px;padding:0 16px;display:flex;align-items:center;gap:10px;text-align:left"><span style="flex:1;font-size:14px;font-weight:600">${cnt ? 'วันนี้กินไปแล้ว ' + cnt + ' ครั้ง · ' + fmt(t.k) + ' kcal' : 'ยังไม่ได้บันทึกวันนี้'}</span>${chev('r', 18)}</button>` + finishDayCard();
+}
+
 /* ================= render ================= */
 const app = document.getElementById('app'); const layer = document.getElementById('layer');
 function render() {
   let html = '';
   if (!db) html = vOnboard();
-  else html = ({ today: vToday, suggest: vSuggest, pick: vPick, other: vOther, addfood: vAddFood, log: vLog, week: vWeek, weighin: vWeighIn, me: vMe, stickers: vStickers, reward: vReward, recap: vRecap, browse: vBrowse }[S.view] || vToday)();
+  else html = ({ today: vToday, suggest: vSuggest, pick: vPick, other: vOther, addfood: vAddFood, log: vLog, week: vWeek, weighin: vWeighIn, me: vMe, stickers: vStickers, reward: vReward, recap: vRecap, browse: vBrowse, build: vBuild }[S.view] || vToday)();
   app.innerHTML = html; renderLayer(); renderToast();
 }
 function renderLayer() { const t = layer.querySelector('.toast'); layer.innerHTML = sheetHtml(); if (t) layer.appendChild(t); renderToast(); }
@@ -875,21 +1058,56 @@ const A = {
   addFood: (el) => { closeSheet(); S.af = { name: el.dataset.name || '', cat: 'main', unit: 'ชิ้น', k: '', p: '', f: '', src: 'est', addon: false, stores: [], back: S.view === 'me' ? 'me' : 'other' }; go('addfood'); },
   afSet: (el) => { S.af[el.dataset.k] = el.dataset.v; render(); },
   afToggle: () => { S.af.addon = !S.af.addon; render(); },
+  afCustomUnit: () => { S.af.unitTyping = true; if (['ทัพพี', 'จาน', 'ถ้วย', 'ชิ้น', 'ฟอง', 'กล่อง', 'แก้ว', 'ซอง', 'กรัม'].includes(S.af.unit)) S.af.unit = ''; render(); setTimeout(() => { const i = document.querySelector('[data-input="af.unit"]'); if (i) i.focus(); }, 30); },
   afStore: (el) => { const v = el.dataset.v; const a = S.af.stores; S.af.stores = a.includes(v) ? a.filter((x) => x !== v) : [...a, v]; render(); },
   afSave: (el) => { const a = S.af; const k = num(a.k); const err = document.getElementById('af-err');
     if (!a.name.trim()) { err.textContent = 'ใส่ชื่อเมนูก่อน'; return; } if (k == null || k <= 0) { err.textContent = 'ใส่ kcal ก่อน (ถ้าไม่รู้ ประมาณเอาได้)'; return; }
-    const data = { name: a.name.trim(), cat: a.cat, icon: CAT_ICON[a.cat], kind: 'item', unit: a.unit, n: { k, p: num(a.p) || 0, f: num(a.f) || 0 }, addon: a.addon, stores: a.stores, src: a.src };
+    const nn = { k, p: num(a.p) || 0, f: num(a.f) || 0 }; const unit = (a.unit || '').trim() || 'ชิ้น';
+    const data = unit === 'กรัม' ? { name: a.name.trim(), cat: a.cat, icon: a.icon || CAT_ICON[a.cat], kind: 'sized', unit: 'g', per100: nn, def: 100, sizes: [[50, 'ครึ่ง', 'S'], [100, '100 g', 'M'], [150, '150 g', 'L']], addon: a.addon, stores: a.stores, src: a.src }
+      : { name: a.name.trim(), cat: a.cat, icon: a.icon || CAT_ICON[a.cat], kind: 'item', unit, n: nn, addon: a.addon, stores: a.stores, src: a.src };
+    if (a.group) data.group = a.group;
     let f; if (a.id) { f = foodById(a.id); Object.assign(f, data); } else { f = { id: uid(), aliases: [], userId: db.userId, createdAt: new Date().toISOString(), ...data }; db.foods.push(f); }
-    save(); if (el.dataset.eat === '1' && !a.id) { const e = addEntry(f); if (e) return afterLog([e]); }
+    save(); if (a.back === 'build' && !a.id) { trayAdd(f.id); S.bq = ''; toast('ใส่ ' + f.name + ' ในจานแล้ว'); return go('build'); }
+    if (el.dataset.eat === '1' && !a.id) { const e = f.kind === 'sized' ? addEntry(f, { grams: 100 }) : addEntry(f); if (e) return afterLog([e]); }
     toast(a.id ? 'แก้ ' + f.name + ' แล้ว' : 'เพิ่ม ' + f.name + ' แล้ว'); go(a.back === 'me' ? 'me' : 'other', { q: '' }); },
   bucketLog: (el) => { const k = el.dataset.k; const v = Number(el.dataset.v); const f = { id: 'bucket-' + k, name: (k === 'out' ? 'มื้อนอกบ้าน ' : 'ขนม ') + el.dataset.n, icon: k === 'out' ? 'main' : 'snack', cat: k === 'out' ? 'main' : 'snack', kind: 'item', unit: 'มื้อ', n: { k: v, p: k === 'out' ? 20 : 4, f: k === 'out' ? 3 : 1 }, src: 'est' }; closeSheet(); const e = addEntry(f); if (e) afterLog([e]); },
   labelSave: () => { const s = S.sheet; const f = foodById(s.id || s.foodId); const k = num(s.k); if (k == null || k <= 0) { document.getElementById('lb-err').textContent = 'ใส่ kcal จากฉลากก่อน'; return; }
-    f.n = { k, p: num(s.p) || 0, f: num(s.f) || 0 }; f.src = 'label'; save(); closeSheet(); if (s.then) { const e = addEntry(f, s.then); if (e) afterLog([e]); } else render(); },
+    f.n = { k, p: num(s.p) || 0, f: num(s.f) || 0 }; f.src = 'label'; save(); closeSheet(); if (s.thenTray) { trayAdd(f.id); render(); return; } if (s.then) { const e = addEntry(f, s.then); if (e) afterLog([e]); } else render(); },
   key: (el) => { let v = S.sheet.v ?? String(activeOf(S.sheet.date) || ''); v = el.dataset.v === '⌫' ? v.slice(0, -1) : (v + el.dataset.v).replace(/^0+/, '').slice(0, 4); S.sheet.v = v; renderLayer(); },
   watchSave: () => { const v = Number(S.sheet.v ?? activeOf(S.sheet.date)) || 0; db.activity[S.sheet.date] = v; save(); closeSheet(); render(); },
   protKg: (el) => { db.profile.protPerKg = Number(el.dataset.v); save(); renderLayer(); render(); },
   watchPct: (el) => { db.profile.watchPct = Number(el.dataset.v); save(); renderLayer(); render(); },
   openLog: (el) => { S.logDate = el.dataset.date; go('log'); },
+  openBuild: () => { S.tray = []; S.bq = ''; S.bslot = slotNow(); S.bdate = null; S.bback = 'today'; go('build'); },
+  plateLog: (el) => { const id = el.dataset.id; const slot = slotNow(); let items;
+    if (id.startsWith('meal:')) items = [{ foodId: id.slice(5), qty: 1 }]; else { const p = (db.plates || []).find((x) => x.id === id); if (!p) return; items = p.items; }
+    const out = logItems(items, slot, todayKey()); if (!out) return; savePlate(items, slot); save(); afterLog(out); },
+  trayAdd: (el) => { trayAdd(el.dataset.id); render(); const i = document.getElementById('bq'); },
+  dbTray: (el) => { let f = foodById(el.dataset.id); if (!f) { const d = FOOD_DB.find((x) => x.id === el.dataset.id); f = { ...JSON.parse(JSON.stringify(d)), addon: false, userId: db.userId }; db.foods.push(f); save(); } trayAdd(f.id); S.bq = ''; render(); },
+  trayQ: (el) => { const t = S.tray[Number(el.dataset.i)]; const f = resolveFood(t.foodId); const d = Number(el.dataset.d);
+    if (f.kind === 'sized') { t.grams = Math.max(0, t.grams + d * (f.sizes ? f.sizes[0][0] / 2 : 50)); if (!t.grams) S.tray.splice(Number(el.dataset.i), 1); } else { t.qty += d; if (t.qty <= 0) S.tray.splice(Number(el.dataset.i), 1); } render(); },
+  traySave: () => { const tray = S.tray || []; if (!tray.length) return; const slot = S.bslot || slotNow(); const date = S.bdate || todayKey();
+    const out = logItems(tray, slot, date); if (!out) return; savePlate(tray, slot); save(); S.tray = []; S.ctx = S.bback === 'log' ? { date, slot, ret: 'log' } : null; afterLog(out); },
+  bslot: (el) => { S.bslot = el.dataset.v; render(); },
+  buildCreate: () => { A.addFood({ dataset: { name: (S.bq || '').trim() } }); S.af.back = 'build'; render(); },
+  buildComp: () => { S.q = S.bq; S.comp = null; S.ctx = { date: S.bdate || todayKey(), slot: S.bslot || slotNow(), ret: S.bback === 'log' ? 'log' : 'today' }; go('other', { q: S.bq }); },
+  groupOpen: (el) => openSheet({ type: 'group', g: el.dataset.g }),
+  groupPick: (el) => { closeSheet(); if (S.view === 'build') { trayAdd(el.dataset.id); S.bq = ''; render(); } else A.quickLog({ dataset: { id: el.dataset.id } }); },
+  groupNew: (el) => { const g = el.dataset.g; closeSheet(); const back = S.view === 'build' ? 'build' : 'other'; A.addFood({ dataset: { name: '' } }); Object.assign(S.af, { group: g, cat: 'drink', icon: 'milk', unit: 'กล่อง', src: 'label', back }); render(); },
+  ovMode: (el) => { S.ovMode = el.dataset.v; render(); },
+  monOff: (el) => { S.monOff = Math.min(0, (S.monOff || 0) + Number(el.dataset.d)); render(); },
+  dayPeriod: (el) => openSheet({ type: 'periodDay', date: el.dataset.d }),
+  periodStart: () => { const t = todayKey(); if (!db.periods.includes(t)) db.periods.push(t); save(); render(); toast('บันทึกประจำเดือนแล้ว', null, 'calm'); },
+  periodStartAt: (el) => { const d = el.dataset.d; if (!db.periods.includes(d)) db.periods.push(d); save(); closeSheet(); render(); },
+  periodEnd: () => { const n = periodNow(); if (!n) return; db.periodEnds[n.start] = todayKey(); save(); render(); },
+  periodEndAt: (el) => { const d = el.dataset.d; const st = [...db.periods].sort().filter((x) => x <= d).pop(); if (st) db.periodEnds[st] = d; save(); closeSheet(); render(); },
+  periodRemove: (el) => { const d = el.dataset.d; const st = [...db.periods].sort().filter((x) => x <= d).pop(); if (st) { db.periods = db.periods.filter((x) => x !== st); delete db.periodEnds[st]; } save(); closeSheet(); render(); },
+  watchOpen: (el) => openSheet({ type: 'watch', date: el.dataset.date }),
+  watchDay: (el) => { S.sheet.date = el.dataset.d; S.sheet.v = undefined; renderLayer(); },
+  hideWatch: () => { S.hideWatch = true; render(); },
+  rebaseYes: () => { const s = S.sheet; db.profile.calcWeight = s.w; save(); closeSheet(); render(); toast('เป้าใหม่ ' + fmt(s.to) + ' kcal', null, 'yay'); },
+  afIcon: (el) => { S.af.icon = el.dataset.v; render(); },
+  afAllIcons: () => { S.af.allIcons = !S.af.allIcons; render(); },
   logDay: (el) => { S.logDate = addDays(S.logDate || todayKey(), Number(el.dataset.d)); render(); },
   logAdd: (el) => { S.ctx = { date: S.logDate || todayKey(), slot: el.dataset.slot, ret: 'log' }; S.q = ''; S.comp = null; go('other'); },
   dayDone: (el) => markDay(el.dataset.date, 'done'),
@@ -939,7 +1157,8 @@ const A = {
   wiSave: () => { const w = num(S.wi.weight); const ws = num(S.wi.waist); const err = document.getElementById('wi-err');
     if (w == null && ws == null) { err.textContent = 'ใส่น้ำหนักหรือรอบเอวอย่างน้อยหนึ่งค่า'; return; }
     if ((w != null && (w < 25 || w > 300)) || (ws != null && (ws < 40 || ws > 200))) { err.textContent = 'ตัวเลขดูไม่ปกติ ลองตรวจอีกครั้ง'; return; }
-    db.body.push({ id: uid(), userId: db.userId, date: todayKey(), weight: w, waist: ws, createdAt: new Date().toISOString(), schemaVersion: 1 }); if (ws != null) updateChin(); save(); toast('บันทึกแล้ว · ' + [w != null ? w + ' kg' : '', ws != null ? ws + ' cm' : ''].filter(Boolean).join(' · ')); go('week'); },
+    db.body.push({ id: uid(), userId: db.userId, date: todayKey(), weight: w, waist: ws, createdAt: new Date().toISOString(), schemaVersion: 1 }); if (ws != null) updateChin(); save(); toast('บันทึกแล้ว · ' + [w != null ? w + ' kg' : '', ws != null ? ws + ' cm' : ''].filter(Boolean).join(' · ')); go('week');
+    const old = calcW(db.profile); if (w != null && Math.abs(w - old) >= 2) { const from = targetBase(db.profile).value; const to = targetBase({ ...db.profile, calcWeight: w }).value; if (from !== to) openSheet({ type: 'rebase', w, old, from, to }); } },
   pace: (el) => { db.profile.pace = el.dataset.v; save(); render(); },
   mealToggle: (el) => { const p = db.profile; const v = el.dataset.v; p.meats = p.meats.includes(v) ? (p.meats.length > 1 ? p.meats.filter((x) => x !== v) : p.meats) : [...p.meats, v].slice(0, 4); save(); renderLayer(); },
   mealStep: (el) => { const p = db.profile; p[el.dataset.k] = Math.max(0, Math.min(400, p[el.dataset.k] + Number(el.dataset.d))); save(); renderLayer(); },
@@ -948,7 +1167,7 @@ const A = {
   resetYes: () => { try { localStorage.removeItem(KEY); } catch (e) {} db = null; S.obStep = 1; closeSheet(); initOb(); render(); },
   foodHide: (el) => { const f = foodById(el.dataset.id); f.hidden = !f.hidden; save(); closeSheet(); render(); },
   foodAddon: (el) => { const f = foodById(el.dataset.id); f.addon = true; f.hidden = false; save(); closeSheet(); render(); },
-  foodEdit: (el) => { const f = foodById(el.dataset.id); closeSheet(); S.af = { id: f.id, name: f.name, cat: f.cat || 'main', unit: f.unit || 'ชิ้น', k: f.n ? f.n.k : '', p: f.n ? f.n.p : '', f: f.n ? f.n.f : '', src: f.src === 'label' ? 'label' : 'est', addon: !!f.addon, stores: f.stores || [], back: 'me' }; go('addfood'); },
+  foodEdit: (el) => { const f = foodById(el.dataset.id); closeSheet(); S.af = { id: f.id, name: f.name, cat: f.cat || 'main', unit: f.unit || 'ชิ้น', k: f.n ? f.n.k : '', p: f.n ? f.n.p : '', f: f.n ? f.n.f : '', src: f.src === 'label' ? 'label' : 'est', addon: !!f.addon, stores: f.stores || [], icon: f.icon, group: f.group, back: 'me' }; go('addfood'); },
   foodDel: (el) => { const f = foodById(el.dataset.id); openSheet({ type: 'confirm', msg: 'ลบ ' + f.name + '? บันทึกเก่ายังอยู่ครบ', yes: 'foodDelYes', id: f.id, label: 'ลบเมนู' }); },
   foodDelYes: () => { const f = foodById(S.sheet.id); f.deleted = true; f.addon = false; save(); closeSheet(); render(); },
   importYes: () => { db = S.sheet.data; save(); closeSheet(); render(); toast('นำเข้าข้อมูลแล้ว', null, 'happy'); },
@@ -980,11 +1199,13 @@ document.addEventListener('click', (ev) => {
   const el = ev.target.closest('[data-act]'); if (!el || el.disabled) return;
   const act = el.dataset.act; if (A[act]) { if (act !== 'overlay') ev.stopPropagation(); A[act](el, ev); }
 });
+document.addEventListener('change', (ev) => { const el = ev.target; if (el.dataset && el.dataset.change === 'periodPick' && el.value) { if (!db.periods.includes(el.value)) db.periods.push(el.value); save(); render(); toast('บันทึกประจำเดือน ' + thDate(el.value), null, 'calm'); } });
 document.addEventListener('input', (ev) => {
   const el = ev.target; const k = el.dataset && el.dataset.input; if (!k) return;
   if (k === 'q') { S.q = el.value; S.comp = null; refreshResults(); return; }
   if (k === 'sizeG') { S.sheet.customG = num(el.value); return; }
   if (k === 'rwName') { S.rw.name = el.value; return; }
+  if (k === 'bq') { S.bq = el.value; refreshBuild(); return; }
   if (k === 'clEmail' || k === 'clPw') { S.sheet[k] = k === 'clPw' ? el.value : el.value.trim(); return; }
   const [obj, field] = k.split('.');
   if (obj === 'ob') S.ob[field] = el.value; else if (obj === 'af') S.af[field] = el.value; else if (obj === 'wi') S.wi[field] = el.value; else if (obj === 'lb' || obj === 'pe') S.sheet[field] = el.value;

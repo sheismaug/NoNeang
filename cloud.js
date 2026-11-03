@@ -133,6 +133,12 @@ function bgImg(w, h, mascot, mx, my, ms) {
   return ctx.getImage();
 }
 function t(st, s, font, color = INK) { const x = st.addText(String(s)); x.font = font; x.textColor = color; x.lineLimit = 1; x.minimumScaleFactor = 0.7; return x; }
+function stamp(parent) {
+  if (!d || !d.at) return; const at = new Date(d.at); const p2 = (n) => String(n).padStart(2, '0');
+  const sameDay = at.toDateString() === new Date().toDateString();
+  const s = parent.addStack(); s.layoutHorizontally(); s.addSpacer();
+  t(s, 'อัปเดต ' + (sameDay ? '' : at.getDate() + '/' + (at.getMonth() + 1) + ' ') + p2(at.getHours()) + ':' + p2(at.getMinutes()), FM(9), GREY);
+}
 function centered(parent) { const r = parent.addStack(); r.layoutHorizontally(); r.centerAlignContent(); r.addSpacer(); return r; }
 function proteinRow(parent, need, chick, sz) {
   const r = centered(parent);
@@ -198,17 +204,19 @@ else {
       const items = d.sug.items.slice(0, 3);
       for (let i = 0; i < items.length; i++) {
         const it = items[i]; const row = R.addStack(); row.layoutHorizontally(); row.centerAlignContent();
-        const ic = await img((BRAND ? 'dot-' : 'icon-') + it.icon) || await img('icon-snack'); if (ic) { const ii = row.addImage(ic); ii.imageSize = new Size(32, 32); }
-        row.addSpacer(9); t(row, it.name || '', F(15)); row.addSpacer(6);
+        const ic = (BRAND && await img('dot-' + it.icon)) || await img('icon-' + it.icon) || await img('icon-snack'); if (ic) { const ii = row.addImage(ic); ii.imageSize = new Size(32, 32); }
+        row.addSpacer(9); t(row, it.name || '', F(15)); row.addSpacer();
         if (BRAND) { const qb = row.addStack(); qb.backgroundColor = new Color('#FFF3B0'); qb.cornerRadius = 10; qb.setPadding(2, 8, 2, 8); t(qb, it.q, F(13), new Color('#6B5A00')); }
         else t(row, it.q, F(14), GREY);
         if (i < items.length - 1) R.addSpacer();
       }
+      stamp(R);
     } else {
       const [h1, h2, mood] = MSG[state];
       const mr = centered(R); const mi2 = await img(mood); if (mi2) { const mm = mr.addImage(mi2); mm.imageSize = new Size(52, 52); } mr.addSpacer();
       R.addSpacer(2); const a1 = centered(R); const x1 = t(a1, h1, F(16)); x1.centerAlignText(); a1.addSpacer();
       R.addSpacer(2); const a2 = centered(R); const x2 = t(a2, h2, FM(12), GREY); x2.lineLimit = 2; x2.centerAlignText(); a2.addSpacer();
+      stamp(R);
     }
   }
 }
