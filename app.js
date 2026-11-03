@@ -508,6 +508,15 @@ function sheetHtml() {
     return wrap(`<div class="row"><b style="flex:1;font-size:19px">ไม่รู้ kcal · เลือกขนาด</b>${closeBtn}</div><span class="small mut">ตั้งสูงไว้เล็กน้อย เพราะคนมักประเมินอาหารร้านต่ำกว่าจริง · บันทึกเป็นค่าประมาณ</span>
       ${[['out', 'มื้อนอกบ้าน', 'main'], ['snack', 'ขนม / ของว่าง', 'snack']].map(([k, l, ic]) => `<b style="font-size:14px">${l}</b><div class="grid3">${BUCKETS[k].map(([n, v], i) => `<button data-act="bucketLog" data-k="${k}" data-v="${v}" data-n="${n}" style="border:none;border-radius:18px;background:${['#FFF8D6', '#FFF3B0', '#FFE88A'][i]};padding:12px 4px;display:flex;flex-direction:column;align-items:center;gap:4px">${svgI(ic, 22 + i * 6)}<b>${n}</b><span class="small">${v}</span></button>`).join('')}</div>`).join('')}`);
   }
+  if (s.type === 'plate') {
+    const pl = s.id.startsWith('meal:') ? null : (db.plates || []).find((x) => x.id === s.id); const items = pl ? pl.items : [{ foodId: s.id.slice(5), qty: 1 }];
+    const tot = plateNutr(items);
+    return wrap(`<div class="row"><span style="flex:1"><b style="font-size:19px;display:block">${esc(plateName(pl, items))}</b><span class="small mut">${items.length} อย่าง · ${fmt(tot.k)} kcal · P ${Math.round(tot.p)} g</span></span>${closeBtn}</div>
+      <div style="border-radius:20px;border:1px solid #F2EEE6;overflow:hidden">${items.map((i) => { const f = resolveFood(i.foodId); if (!f) return ''; const n = plateNutr([i]); return `<div class="row" style="padding:10px 12px;border-bottom:1px solid #F2EEE6">${iconBox(f.icon, 22, 38)}<span style="flex:1;min-width:0"><b style="font-size:14px">${esc(f.name)}</b><span class="small mut" style="display:block">${f.kind === 'sized' ? (i.grams || f.def) + ' g' : (i.qty || 1) + ' ' + esc(f.unit || '')}</span></span><b style="font-size:14px">${fmt(n.k)}</b></div>`; }).join('')}</div>
+      ${pl ? `<div class="field"><label for="pl-name">ตั้งชื่อจาน (ไม่ใส่ก็ได้)</label><input id="pl-name" data-input="sheet.name" value="${esc(s.name ?? pl.name ?? '')}" placeholder="เช่น ข้าวเที่ยงประจำ" style="height:48px;border-radius:14px;border:2px solid #FFD000;padding:0 12px;font-size:16px"></div>` : ''}
+      <button class="btn" data-act="plateLogSheet" data-id="${esc(s.id)}">บันทึกจานนี้</button>
+      ${pl ? '<div class="grid2" style="gap:8px"><button class="btn g" data-act="plateRename">เก็บชื่อ</button><button class="btn danger" data-act="plateHide">เอาออกจากหน้าแรก</button></div>' : ''}`);
+  }
   if (s.type === 'group') {
     const fs = db.foods.filter((f) => !f.deleted && f.group === s.g).sort((a, b) => (b.lastUsed || '').localeCompare(a.lastUsed || ''));
     return wrap(`<div class="row">${iconBox(fs[0] ? fs[0].icon : 'milk', 26, 46, 23)}<span style="flex:1"><b style="font-size:19px;display:block">${esc(s.g)}</b><span class="small mut">เลือกยี่ห้อ/แบบ · อันที่ใช้ล่าสุดอยู่บน</span></span>${closeBtn}</div>
@@ -867,14 +876,21 @@ function homePlates(slot) {
   for (const m of mealFoods()) { if (out.length >= 3) break; if (!out.some((o) => o.plate && o.plate.items.length === 1 && o.plate.items[0].foodId === m.id)) out.push({ meal: m }); }
   return out.slice(0, 3);
 }
+const shortName = (n) => n.replace(/\s*\(.*?\)\s*/g, ' ').trim();
+function plateName(pl, items) {
+  if (pl && pl.name) return pl.name;
+  const fs = items.map((i) => ({ f: resolveFood(i.foodId), n: plateNutr([i]) })).filter((x) => x.f).sort((a, b) => b.n.k - a.n.k);
+  const ns = fs.map((x) => shortName(x.f.name));
+  return ns.length <= 2 ? ns.join(' + ') : ns.slice(0, 2).join(' + ') + ' +' + (ns.length - 2);
+}
 function plateCard(o) {
   const items = o.plate ? o.plate.items : [{ foodId: o.meal.id, qty: 1 }];
   const foods = items.map((i) => resolveFood(i.foodId)); const n = plateNutr(items);
-  const name = foods.length === 1 ? foods[0].name : foods.map((f) => f.name.split(' ')[0]).join(' ');
+  const name = plateName(o.plate, items);
   const id = o.plate ? o.plate.id : 'meal:' + o.meal.id;
-  return `<button data-act="plateLog" data-id="${esc(id)}" aria-label="บันทึก ${esc(name)}" style="border:none;border-radius:24px;background:#fff;box-shadow:0 6px 18px rgba(31,31,31,.07);padding:12px 6px 10px;display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;min-width:0">
+  return `<button data-act="plateLog" data-id="${esc(id)}" data-press="plateMenu" aria-label="บันทึก ${esc(name)} · กดค้างเพื่อดูทั้งหมด" style="-webkit-touch-callout:none;user-select:none;border:none;border-radius:24px;background:#fff;box-shadow:0 6px 18px rgba(31,31,31,.07);padding:12px 6px 10px;display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;min-width:0">
     <span style="width:74px;height:74px;border-radius:37px;background:#FFF8D6;display:flex;align-items:center;justify-content:center">${plateSvg(foods.map((f) => f.icon))}</span>
-    <span style="font-size:13px;font-weight:700;margin-top:4px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px">${esc(name)}</span>
+    <span style="font-size:12.5px;font-weight:700;margin-top:4px;max-width:100%;line-height:1.25;min-height:2.5em;text-align:center;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;padding:0 4px">${esc(name)}</span>
     <span class="small mut" style="font-size:11px">${foods.length > 1 ? foods.length + ' อย่าง · ' : ''}${fmt(n.k)} kcal</span>
     <span class="ic" style="position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:12px;background:var(--y);font-size:15px;font-weight:700">+</span></button>`;
 }
@@ -1000,7 +1016,7 @@ function todayBody() {
   const watchMiss = !S.hideWatch && y >= db.profile.startDate && entriesOn(y).length && !db.activity[y];
   const wcard = watchMiss ? `<div class="card row" style="margin-top:10px;background:var(--lav);box-shadow:none;gap:10px;padding:10px 12px"><span class="ic" style="width:34px;height:34px;border-radius:17px;background:#fff">${svgI('watch', 20)}</span><button data-act="watchOpen" data-date="${y}" style="flex:1;border:none;background:none;text-align:left;padding:0"><b style="font-size:13px;display:block">เมื่อวานยังไม่ได้กรอก Watch</b><span class="small mut" style="font-size:11px">แตะเพื่อกรอก · เพิ่มโควต้าให้เมื่อวาน</span></button><button data-act="hideWatch" aria-label="ซ่อน" style="border:none;background:none;padding:6px">${xIcon}</button></div>` : '';
   const t = totals(k); const cnt = entriesOn(k).length;
-  return wcard + `<div class="row" style="margin:12px 20px 0;justify-content:space-between;align-items:baseline"><b style="font-size:17px">มื้อ${sname}กินอะไร?</b><span class="small mut">แตะ = บันทึกทั้งจาน</span></div>
+  return wcard + `<div class="row" style="margin:12px 20px 0;justify-content:space-between;align-items:baseline"><b style="font-size:17px">มื้อ${sname}กินอะไร?</b><span class="small mut">แตะ = บันทึก · กดค้าง = ดูทั้งหมด</span></div>
     <div class="grid3" style="margin:10px 16px 0;gap:10px">${homePlates(slot).map(plateCard).join('')}</div>
     <button data-act="openBuild" style="margin:12px 16px 0;width:calc(100% - 32px);height:54px;border:none;border-radius:27px;background:#fff;box-shadow:0 6px 18px rgba(31,31,31,.08);display:flex;align-items:center;gap:10px;padding:0 8px 0 18px;color:#8A8A8A;font-size:15px;text-align:left"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg><span style="flex:1">ไม่ใช่จานพวกนี้? ค้นหา / ประกอบจาน</span><span class="ic" style="width:40px;height:40px;border-radius:20px;background:var(--y);font-size:22px;font-weight:700;color:var(--ink)">+</span></button>
     <button data-act="openLog" data-date="${k}" style="margin:10px 18px 0;width:calc(100% - 36px);border:none;background:var(--g);border-radius:22px;min-height:48px;padding:0 16px;display:flex;align-items:center;gap:10px;text-align:left"><span style="flex:1;font-size:14px;font-weight:600">${cnt ? 'วันนี้กินไปแล้ว ' + cnt + ' ครั้ง · ' + fmt(t.k) + ' kcal' : 'ยังไม่ได้บันทึกวันนี้'}</span>${chev('r', 18)}</button>` + finishDayCard();
@@ -1094,6 +1110,10 @@ const A = {
   groupOpen: (el) => openSheet({ type: 'group', g: el.dataset.g }),
   groupPick: (el) => { closeSheet(); if (S.view === 'build') { trayAdd(el.dataset.id); S.bq = ''; render(); } else A.quickLog({ dataset: { id: el.dataset.id } }); },
   groupNew: (el) => { const g = el.dataset.g; closeSheet(); const back = S.view === 'build' ? 'build' : 'other'; A.addFood({ dataset: { name: '' } }); Object.assign(S.af, { group: g, cat: 'drink', icon: 'milk', unit: 'กล่อง', src: 'label', back }); render(); },
+  plateMenu: (el) => openSheet({ type: 'plate', id: el.dataset.id }),
+  plateLogSheet: (el) => { closeSheet(); A.plateLog(el); },
+  plateRename: () => { const s = S.sheet; const pl = db.plates.find((x) => x.id === s.id); if (pl) { pl.name = (s.name ?? pl.name ?? '').trim() || undefined; save(); } closeSheet(); render(); },
+  plateHide: () => { const pl = db.plates.find((x) => x.id === S.sheet.id); if (pl) { pl.hidden = true; save(); } closeSheet(); render(); toast('เอาออกแล้ว'); },
   ovMode: (el) => { S.ovMode = el.dataset.v; render(); },
   monOff: (el) => { S.monOff = Math.min(0, (S.monOff || 0) + Number(el.dataset.d)); render(); },
   dayPeriod: (el) => openSheet({ type: 'periodDay', date: el.dataset.d }),
@@ -1195,7 +1215,14 @@ function initOb() { S.ob = { name: '', sex: 'f', birth: '', height: '', weight: 
 function refreshResults() { const r = document.getElementById('results'); if (r) r.innerHTML = otherResults(); }
 function download(name, text, type) { const b = new Blob([text], { type }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
 
+let pressT = null, pressed = false;
+document.addEventListener('pointerdown', (ev) => { const el = ev.target.closest('[data-press]'); pressed = false; if (!el) return; const sx = ev.clientX, sy = ev.clientY;
+  pressT = setTimeout(() => { pressed = true; pressT = null; if (navigator.vibrate) navigator.vibrate(15); A[el.dataset.press](el); }, 480);
+  const cancel = (e) => { if (e.type === 'pointermove' && Math.hypot(e.clientX - sx, e.clientY - sy) < 10) return; clearTimeout(pressT); pressT = null; document.removeEventListener('pointermove', cancel); document.removeEventListener('pointerup', cancel); document.removeEventListener('pointercancel', cancel); };
+  document.addEventListener('pointermove', cancel); document.addEventListener('pointerup', cancel); document.addEventListener('pointercancel', cancel); });
+document.addEventListener('contextmenu', (ev) => { if (ev.target.closest('[data-press]')) ev.preventDefault(); });
 document.addEventListener('click', (ev) => {
+  if (pressed) { pressed = false; ev.preventDefault(); ev.stopPropagation(); return; }
   const el = ev.target.closest('[data-act]'); if (!el || el.disabled) return;
   const act = el.dataset.act; if (A[act]) { if (act !== 'overlay') ev.stopPropagation(); A[act](el, ev); }
 });
@@ -1206,6 +1233,7 @@ document.addEventListener('input', (ev) => {
   if (k === 'sizeG') { S.sheet.customG = num(el.value); return; }
   if (k === 'rwName') { S.rw.name = el.value; return; }
   if (k === 'bq') { S.bq = el.value; refreshBuild(); return; }
+  if (k === 'sheet.name') { S.sheet.name = el.value; return; }
   if (k === 'clEmail' || k === 'clPw') { S.sheet[k] = k === 'clPw' ? el.value : el.value.trim(); return; }
   const [obj, field] = k.split('.');
   if (obj === 'ob') S.ob[field] = el.value; else if (obj === 'af') S.af[field] = el.value; else if (obj === 'wi') S.wi[field] = el.value; else if (obj === 'lb' || obj === 'pe') S.sheet[field] = el.value;
