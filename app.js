@@ -336,11 +336,11 @@ function vLog() {
   const st = db.dayStatus[k];
   const items = SLOTS.map((s) => { const es = entriesOn(k).filter((e) => e.slot === s.id);
     const head = `<div class="row" style="position:relative"><span class="ic" style="width:34px;height:34px;border-radius:17px;background:#fff;box-shadow:0 3px 10px rgba(31,31,31,.1)">${slotSvg(s.id)}</span><span class="badge" style="background:var(--g);color:var(--ink);font-size:12px">${s.name}</span><span class="small mut">${pad(s.from % 24)}:00–${s.to >= 24 ? 'ดึก' : pad(s.to) + ':00'}</span><span style="flex:1"></span><button class="step" style="background:var(--yl);width:36px;height:36px" data-act="logAdd" data-slot="${s.id}" aria-label="เพิ่มช่วง${s.name}">+</button></div>`;
-    const rows = es.map((e) => `<button data-act="sheet" data-type="edit" data-id="${e.id}" style="margin-left:44px;border:none;background:#fff;border-radius:18px;box-shadow:0 6px 16px rgba(31,31,31,.08);min-height:56px;padding:0 14px 0 9px;display:flex;align-items:center;gap:10px;text-align:left;width:calc(100% - 44px)">${iconBox(e.icon, 22, 38, 13)}<span style="flex:1"><b style="font-size:15px">${esc(e.name)}</b><span class="small mut" style="display:block">${esc(e.unitLabel)}${e.src === 'est' ? ' · ค่าประมาณ' : ''}</span></span><b>${fmt(e.k)}</b><span class="small mut">kcal</span>${pencil()}</button>`).join('');
-    return head + rows; }).join('');
+    const rows = es.map((e) => `<button data-act="sheet" data-type="edit" data-id="${e.id}" data-drag="${e.id}" style="-webkit-touch-callout:none;user-select:none;-webkit-user-select:none;margin-left:44px;border:none;background:#fff;border-radius:18px;box-shadow:0 6px 16px rgba(31,31,31,.08);min-height:56px;padding:0 14px 0 9px;display:flex;align-items:center;gap:10px;text-align:left;width:calc(100% - 44px)">${iconBox(e.icon, 22, 38, 13)}<span style="flex:1"><b style="font-size:15px">${esc(e.name)}</b><span class="small mut" style="display:block">${esc(e.unitLabel)}${e.src === 'est' ? ' · ค่าประมาณ' : ''}</span></span><b>${fmt(e.k)}</b><span class="small mut">kcal</span>${pencil()}</button>`).join('');
+    return `<div data-slotzone="${s.id}" style="display:flex;flex-direction:column;gap:10px;border-radius:20px;transition:background .15s">${head}${rows}</div>`; }).join('');
   return topBar('บันทึกการกิน', '', 'today') +
     `<div class="card row" style="padding:6px"><button class="back" data-act="logDay" data-d="-1" ${k <= min ? 'disabled style="opacity:.3"' : ''} aria-label="วันก่อนหน้า">${chev('l', 18)}</button><div style="flex:1;text-align:center"><b style="font-size:17px">${k === todayKey() ? 'วันนี้' : k === addDays(todayKey(), -1) ? 'เมื่อวาน' : thDate(k)}</b><span class="small mut" style="display:block">${thDate(k)} · ย้อนได้ 7 วัน</span></div><button class="back" data-act="logDay" data-d="1" ${k >= todayKey() ? 'disabled style="opacity:.3"' : ''} aria-label="วันถัดไป">${chev('r', 18)}</button></div>
-    <div class="row" style="margin:14px 20px 0;justify-content:space-between"><span class="mut">รวม <b style="color:var(--ink);font-size:18px">${fmt(t.k)}</b> / ${fmt(goal)} kcal</span>${st === 'done' ? '<span class="badge" style="background:var(--greenL)">ครบแล้ว ✓</span>' : st === 'special' ? `<span class="badge" style="background:#FFE8F3">${svgI('cake', 14)} มื้อพิเศษ</span>` : ''}</div>
+    <div class="row" style="margin:14px 20px 0;justify-content:space-between"><span class="mut">รวม <b style="color:var(--ink);font-size:18px">${fmt(t.k)}</b> / ${fmt(goal)} kcal${entriesOn(k).length ? '<span class="small" style="display:block;font-size:11px">กดค้างที่รายการแล้วลาก เพื่อย้ายมื้อ</span>' : ''}</span>${st === 'done' ? '<span class="badge" style="background:var(--greenL)">ครบแล้ว ✓</span>' : st === 'special' ? `<span class="badge" style="background:#FFE8F3">${svgI('cake', 14)} มื้อพิเศษ</span>` : ''}</div>
     <div style="margin:14px 16px 0;position:relative;display:flex;flex-direction:column;gap:10px"><div style="position:absolute;left:16px;top:18px;bottom:18px;width:2px;background:#EFEFEC"></div>${items}</div>
     ${logExCard(k)}
     ${!LOGGED(k) && entriesOn(k).length ? `<div class="grid2" style="margin:18px 16px 0;gap:8px"><button class="btn" data-act="dayDone" data-date="${k}">จดครบแล้ว ✓</button><button class="btn w" data-act="daySpecial" data-date="${k}" style="font-size:14px">${svgI('cake', 18)} วันมื้อพิเศษ</button></div>` : ''}
@@ -1055,12 +1055,17 @@ function vMonth() {
     ${periodCard()}` + nav();
 }
 
+function slotPicker(cur) {
+  const now = slotNow();
+  return `<div role="radiogroup" aria-label="บันทึกลงมื้อ" style="display:flex;align-items:center;gap:5px;background:var(--g);border-radius:22px;padding:3px">${SLOTS.map((x) => { const on = x.id === cur;
+    return `<button role="radio" aria-checked="${on}" aria-label="${x.name}" data-act="homeSlotPick" data-v="${x.id}" style="border:none;height:34px;${on ? 'padding:0 11px 0 6px;background:#fff;box-shadow:0 2px 8px rgba(31,31,31,.12);' : 'width:34px;padding:0;background:none;'}border-radius:17px;display:flex;align-items:center;justify-content:center;gap:4px;position:relative">${slotSvg(x.id, on ? 20 : 18)}${on ? `<b style="font-size:13px;white-space:nowrap">${x.name}</b>` : ''}${x.id === now && !on ? '<span style="position:absolute;top:3px;right:4px;width:6px;height:6px;border-radius:3px;background:#FFB800"></span>' : ''}</button>`; }).join('')}</div>`;
+}
 function todayBody() {
   const k = todayKey(); const slot = S.homeSlot || slotNow(); const sname = SLOTS.find((s) => s.id === slot).name; const y = addDays(k, -1);
   const watchMiss = false;
   const wcard = watchMiss ? `<div class="card row" style="margin-top:10px;background:var(--lav);box-shadow:none;gap:10px;padding:10px 12px"><span class="ic" style="width:34px;height:34px;border-radius:17px;background:#fff">${svgI('watch', 20)}</span><button data-act="watchOpen" data-date="${y}" style="flex:1;border:none;background:none;text-align:left;padding:0"><b style="font-size:13px;display:block">เมื่อวานยังไม่ได้กรอก Watch</b><span class="small mut" style="font-size:11px">แตะเพื่อกรอก · เพิ่มโควต้าให้เมื่อวาน</span></button><button data-act="hideWatch" aria-label="ซ่อน" style="border:none;background:none;padding:6px">${xIcon}</button></div>` : '';
   const t = totals(k); const cnt = entriesOn(k).length;
-  return wcard + `<div class="row" style="margin:12px 20px 0;justify-content:space-between;align-items:baseline"><button data-act="homeSlot" aria-label="เปลี่ยนมื้อ" style="border:none;background:none;padding:0;display:flex;align-items:center;gap:4px;white-space:nowrap"><b style="font-size:17px">มื้อ<span style="background:var(--y);border-radius:10px;padding:0 6px;margin:0 2px">${sname} ▾</span>กินอะไร?</b></button><span class="small mut" style="white-space:nowrap">แตะ = บันทึก · ค้าง = ดูทั้งหมด</span></div>
+  return wcard + `<div class="row" style="margin:12px 20px 0;justify-content:space-between;align-items:baseline"><b style="font-size:17px;white-space:nowrap">กินอะไร?</b>${slotPicker(slot)}</div>
     ${(() => { const hp = homePlates(slot); return `<div class="hscroll" style="margin:10px 0 0;padding:0 16px 4px;display:grid;grid-auto-flow:column;grid-auto-columns:${hp.length > 3 ? 'calc((100% - 52px) / 3.25)' : 'calc((100% - 52px) / 3)'};gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-left:16px">${hp.map(plateCard).join('')}</div>`; })()}
     <button data-act="openBuild" style="margin:12px 16px 0;width:calc(100% - 32px);height:54px;border:none;border-radius:27px;background:#fff;box-shadow:0 6px 18px rgba(31,31,31,.08);display:flex;align-items:center;gap:10px;padding:0 8px 0 18px;color:#8A8A8A;font-size:15px;text-align:left"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg><span style="flex:1">ไม่ใช่จานพวกนี้? ค้นหา / ประกอบจาน</span><span class="ic" style="width:40px;height:40px;border-radius:20px;background:var(--y);font-size:22px;font-weight:700;color:var(--ink)">+</span></button>
     <button data-act="openLog" data-date="${k}" style="margin:10px 18px 0;width:calc(100% - 36px);border:none;background:var(--g);border-radius:22px;min-height:48px;padding:0 16px;display:flex;align-items:center;gap:10px;text-align:left"><span style="flex:1;font-size:14px;font-weight:600">${cnt ? 'วันนี้กินไปแล้ว ' + cnt + ' ครั้ง · ' + fmt(t.k) + ' kcal' : 'ยังไม่ได้บันทึกวันนี้'}</span>${chev('r', 18)}</button>` + finishDayCard();
@@ -1188,7 +1193,7 @@ const A = {
   watchPct: (el) => { db.profile.watchPct = Number(el.dataset.v); save(); renderLayer(); render(); },
   openLog: (el) => { S.logDate = el.dataset.date; go('log'); },
   homeSlot: () => openSheet({ type: 'homeSlot' }),
-  homeSlotPick: (el) => { S.homeSlot = el.dataset.v === slotNow() ? null : el.dataset.v; closeSheet(); render(); },
+  homeSlotPick: (el) => { S.homeSlot = el.dataset.v === slotNow() ? null : el.dataset.v; if (S.sheet) closeSheet(); render(); },
   openBuild: () => { S.tray = []; S.bq = ''; S.bslot = S.homeSlot || slotNow(); S.bdate = null; S.bback = 'today'; go('build'); },
   plateLog: (el) => { const id = el.dataset.id; const slot = slotNow(); let items;
     if (id.startsWith('meal:')) items = [{ foodId: id.slice(5), qty: 1 }]; else { const p = (db.plates || []).find((x) => x.id === id); if (!p) return; items = p.items; }
@@ -1327,6 +1332,29 @@ function initOb() { S.ob = { name: '', sex: 'f', birth: '', height: '', weight: 
 function refreshResults() { const r = document.getElementById('results'); if (r) r.innerHTML = otherResults(); }
 function download(name, text, type) { const b = new Blob([text], { type }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
 
+let dragT = null, drag = null;
+function dragEnd(ev, commit) {
+  clearTimeout(dragT); dragT = null; if (!drag) return; const d = drag; drag = null;
+  d.ghost.remove(); d.el.style.opacity = ''; document.querySelectorAll('[data-slotzone]').forEach((z) => (z.style.background = ''));
+  if (commit && d.zone && d.zone !== d.from) { const e = db.entries.find((x) => x.id === d.id); if (e) { e.slot = d.zone; e.updatedAt = new Date().toISOString(); save(); render(); toast('ย้ายไปมื้อ' + SLOTS.find((x) => x.id === d.zone).name + 'แล้ว'); } }
+  pressed = true; setTimeout(() => { pressed = false; }, 400);
+}
+document.addEventListener('pointerdown', (ev) => { const el = ev.target.closest('[data-drag]'); if (!el) return; const sx = ev.clientX, sy = ev.clientY;
+  const zone0 = el.closest('[data-slotzone]'); clearTimeout(dragT);
+  dragT = setTimeout(() => { dragT = null; const r = el.getBoundingClientRect(); const g = el.cloneNode(true);
+    Object.assign(g.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', margin: 0, zIndex: 999, pointerEvents: 'none', transform: 'scale(1.04) rotate(-1.5deg)', boxShadow: '0 16px 36px rgba(31,31,31,.25)', transition: 'transform .12s' });
+    document.body.appendChild(g); el.style.opacity = '.3'; if (navigator.vibrate) navigator.vibrate(20);
+    drag = { id: el.dataset.drag, el, ghost: g, dy: sy - r.top, left: r.left, from: zone0 && zone0.dataset.slotzone, zone: null }; }, 380);
+  const early = (e) => { if (!dragT) return; if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) { clearTimeout(dragT); dragT = null; } };
+  document.addEventListener('pointermove', early, { once: false }); setTimeout(() => document.removeEventListener('pointermove', early), 600); });
+document.addEventListener('touchmove', (ev) => { if (drag) ev.preventDefault(); }, { passive: false });
+document.addEventListener('pointermove', (ev) => { if (!drag) return; drag.ghost.style.top = (ev.clientY - drag.dy) + 'px';
+  const z = document.elementFromPoint(window.innerWidth / 2, ev.clientY); const zone = z && z.closest('[data-slotzone]'); const id = zone ? zone.dataset.slotzone : null;
+  if (id !== drag.zone) { document.querySelectorAll('[data-slotzone]').forEach((x) => (x.style.background = x.dataset.slotzone === id && id !== drag.from ? '#FFF3B0' : '')); drag.zone = id; }
+  if (ev.clientY < 80) window.scrollBy(0, -12); else if (ev.clientY > window.innerHeight - 110) window.scrollBy(0, 12); });
+document.addEventListener('pointerup', (ev) => { if (dragT) { clearTimeout(dragT); dragT = null; } if (drag) dragEnd(ev, true); });
+document.addEventListener('pointercancel', (ev) => { if (dragT) { clearTimeout(dragT); dragT = null; } if (drag) dragEnd(ev, false); });
+document.addEventListener('contextmenu', (ev) => { if (ev.target.closest('[data-drag]')) ev.preventDefault(); });
 let pressT = null, pressed = false;
 document.addEventListener('pointerdown', (ev) => { const el = ev.target.closest('[data-press]'); pressed = false; if (!el) return; const sx = ev.clientX, sy = ev.clientY;
   pressT = setTimeout(() => { pressed = true; pressT = null; if (navigator.vibrate) navigator.vibrate(15); A[el.dataset.press](el); }, 480);
