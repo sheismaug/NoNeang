@@ -340,6 +340,7 @@ function vLog() {
     `<div class="card row" style="padding:6px"><button class="back" data-act="logDay" data-d="-1" ${k <= min ? 'disabled style="opacity:.3"' : ''} aria-label="วันก่อนหน้า">${chev('l', 18)}</button><div style="flex:1;text-align:center"><b style="font-size:17px">${k === todayKey() ? 'วันนี้' : k === addDays(todayKey(), -1) ? 'เมื่อวาน' : thDate(k)}</b><span class="small mut" style="display:block">${thDate(k)} · ย้อนได้ 7 วัน</span></div><button class="back" data-act="logDay" data-d="1" ${k >= todayKey() ? 'disabled style="opacity:.3"' : ''} aria-label="วันถัดไป">${chev('r', 18)}</button></div>
     <div class="row" style="margin:14px 20px 0;justify-content:space-between"><span class="mut">รวม <b style="color:var(--ink);font-size:18px">${fmt(t.k)}</b> / ${fmt(goal)} kcal</span>${st === 'done' ? '<span class="badge" style="background:var(--greenL)">ครบแล้ว ✓</span>' : st === 'special' ? `<span class="badge" style="background:#FFE8F3">${svgI('cake', 14)} มื้อพิเศษ</span>` : ''}</div>
     <div style="margin:14px 16px 0;position:relative;display:flex;flex-direction:column;gap:10px"><div style="position:absolute;left:16px;top:18px;bottom:18px;width:2px;background:#EFEFEC"></div>${items}</div>
+    ${logExCard(k)}
     ${!LOGGED(k) && entriesOn(k).length ? `<div class="grid2" style="margin:18px 16px 0;gap:8px"><button class="btn" data-act="dayDone" data-date="${k}">จดครบแล้ว ✓</button><button class="btn w" data-act="daySpecial" data-date="${k}" style="font-size:14px">${svgI('cake', 18)} วันมื้อพิเศษ</button></div>` : ''}
     ${LOGGED(k) ? `<div style="margin:14px 16px 0;text-align:center"><button class="link" data-act="dayUndo" data-date="${k}">ยกเลิกสถานะ "${st === 'special' ? 'มื้อพิเศษ' : 'ครบแล้ว'}"</button></div>` : ''}` + nav();
 }
@@ -512,7 +513,7 @@ function sheetHtml() {
   }
   if (s.type === 'walk') {
     const P = db.exPrefs; const m = s.min ?? P.walkMin; const opts = [20, 30, 45, 60]; const custom = !opts.includes(m);
-    return wrap(`<div class="row">${iconBox('shoe', 28, 52)}<span style="flex:1"><b style="font-size:19px;display:block">เดินลู่วันนี้กี่นาที?</b><span class="small mut">เลือกไว้ให้ตามครั้งล่าสุด</span></span>${closeBtn}</div>
+    return wrap(`<div class="row">${iconBox('shoe', 28, 52)}<span style="flex:1"><b style="font-size:19px;display:block">เดินลู่${!S.exDate || S.exDate === todayKey() ? 'วันนี้' : ' ' + thDate(S.exDate)} กี่นาที?</b><span class="small mut">เลือกไว้ให้ตามครั้งล่าสุด</span></span>${closeBtn}</div>
       <div class="grid3" style="grid-template-columns:repeat(5,minmax(0,1fr));gap:8px">${opts.map((v) => `<button data-act="walkMin" data-v="${v}" style="height:56px;border:none;border-radius:18px;background:${m === v ? 'var(--y)' : 'var(--g)'};display:flex;flex-direction:column;align-items:center;justify-content:center"><b style="font-size:20px;line-height:1">${v}</b><span style="font-size:11px;color:var(--mut)">นาที</span></button>`).join('')}
         <input data-input="sheet.minTxt" inputmode="numeric" aria-label="ใส่นาทีเอง" placeholder="อื่นๆ" value="${custom ? m : ''}" style="height:56px;border-radius:18px;border:${custom ? '2px solid #FFD000' : '1.5px dashed #CFCFCF'};text-align:center;font-size:17px;font-weight:700;min-width:0"></div>
       ${s.edit ? `<div class="grid2" style="gap:8px"><div class="field"><label for="w-inc">ความชัน</label><input id="w-inc" inputmode="decimal" data-input="sheet.inc" value="${s.inc ?? P.incline ?? ''}" style="height:48px;border-radius:14px;border:2px solid #FFD000;text-align:center;font-size:17px;font-weight:700"></div><div class="field"><label for="w-sp">ความเร็ว</label><input id="w-sp" inputmode="decimal" data-input="sheet.sp" value="${s.sp ?? P.speed ?? ''}" style="height:48px;border-radius:14px;border:2px solid #FFD000;text-align:center;font-size:17px;font-weight:700"></div></div>`
@@ -522,23 +523,23 @@ function sheetHtml() {
   }
   if (s.type === 'exOther') {
     const recent = [...new Set(['พิลาทีส', ...(db.workouts || []).filter((w) => w.type === 'other').map((w) => w.name)])].slice(0, 5);
-    return wrap(`<div class="row">${iconBox('spa', 28, 52)}<span style="flex:1"><b style="font-size:19px;display:block">ทำอะไรมา?</b><span class="small mut">ไม่มีเป้า ไปเมื่อไหร่ก็บันทึกได้</span></span>${closeBtn}</div>
+    return wrap(`<div class="row">${iconBox('spa', 28, 52)}<span style="flex:1"><b style="font-size:19px;display:block">ทำอะไรมา${S.exDate && S.exDate !== todayKey() ? ' (' + thDate(S.exDate) + ')' : ''}?</b><span class="small mut">ไม่มีเป้า ไปเมื่อไหร่ก็บันทึกได้</span></span>${closeBtn}</div>
       <div class="row" style="gap:8px;flex-wrap:wrap">${recent.map((n) => `<button class="chip ${s.name === n ? 'on' : ''}" data-act="otherPick" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>
       <input data-input="sheet.name" value="${esc(s.name || '')}" placeholder="หรือพิมพ์เอง เช่น ว่ายน้ำ, โยคะ" aria-label="ชื่อกิจกรรม" style="height:50px;border-radius:16px;border:2px solid #FFD000;padding:0 14px;font-size:16px">
       <div class="row" style="gap:8px">${[30, 45, 60].map((v) => `<button class="chip ${s.min === v ? 'on' : ''}" data-act="otherMin" data-v="${v}">${v} นาที</button>`).join('')}<span class="small mut">(ไม่ใส่ก็ได้)</span></div>
       <button class="btn" data-act="otherSave">บันทึก</button>
-      ${(db.workouts || []).some((w) => w.date === todayKey()) ? '<button class="link" data-act="exManage">ดู/ลบที่บันทึกวันนี้</button>' : ''}`);
+      ${exOn(S.exDate || todayKey()).length ? '<button class="link" data-act="exManage">ดู/ลบที่บันทึกวันนั้น</button>' : ''}`);
   }
   if (s.type === 'exDone') {
-    const w = db.workouts.find((x) => x.id === s.id); const wk = exWeek(mondayOf(todayKey()));
+    const w = db.workouts.find((x) => x.id === s.id); const wk = exWeek(mondayOf(w.date));
     const sub = w.type === 'walk' ? w.min + ' นาที' + (w.incline != null ? ' · ชัน ' + w.incline + ' · ' + w.speed : '') : w.type === 'weight' ? '1 ชั่วโมง' : esc(w.name || 'อื่นๆ') + (w.min ? ' · ' + w.min + ' นาที' : '');
-    return wrap(`<div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="position:relative;display:block">${mascot('proud', 116)}<span style="position:absolute;right:-16px;top:2px;transform:rotate(18deg)">${svgI(exIcon(w.type), 44)}</span></span><b style="font-size:23px;margin-top:6px">ชนะความขี้เกียจอีกวัน!</b><span class="small mut" style="font-size:14px">${w.type === 'weight' || w.type === 'walk' ? EX_NAME[w.type] : ''} ${sub}</span></div>
-      <div style="background:#FFFBEB;border-radius:22px;padding:14px 16px;display:flex;flex-direction:column;gap:10px"><span class="small" style="font-weight:700;color:var(--mut)">สัปดาห์นี้</span>${exProgress(wk)}<span class="small" style="text-align:center;font-weight:700;color:#3E7A4E">${exDoneMsg(w, wk)}</span></div>
+    return wrap(`<div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="position:relative;display:block">${mascot('proud', 116)}<span style="position:absolute;right:-16px;top:2px;transform:rotate(18deg)">${svgI(exIcon(w.type), 44)}</span></span><b style="font-size:23px;margin-top:6px">ชนะความขี้เกียจอีกวัน!</b>${w.date !== todayKey() ? '<span class="badge" style="background:var(--g);color:var(--ink)">บันทึกลง ' + thDate(w.date) + '</span>' : ''}<span class="small mut" style="font-size:14px">${w.type === 'weight' || w.type === 'walk' ? EX_NAME[w.type] : ''} ${sub}</span></div>
+      <div style="background:#FFFBEB;border-radius:22px;padding:14px 16px;display:flex;flex-direction:column;gap:10px"><span class="small" style="font-weight:700;color:var(--mut)">${mondayOf(w.date) === mondayOf(todayKey()) ? 'สัปดาห์นี้' : 'สัปดาห์ ' + thDate(mondayOf(w.date))}</span>${exProgress(wk)}<span class="small" style="text-align:center;font-weight:700;color:#3E7A4E">${exDoneMsg(w, wk)}</span></div>
       <button class="btn" data-act="close">เย้ 🎉</button><button class="link" data-act="exUndo" data-id="${w.id}">กดผิด · ลบอันนี้</button>`);
   }
   if (s.type === 'exManage') {
-    const on = exOn(todayKey());
-    return wrap(`<div class="row"><b style="flex:1;font-size:19px">ขยับวันนี้</b>${closeBtn}</div>
+    const md = s.date || todayKey(); const on = exOn(md);
+    return wrap(`<div class="row"><b style="flex:1;font-size:19px">ขยับ${md === todayKey() ? 'วันนี้' : ' ' + thDate(md)}</b>${closeBtn}</div>
       <div style="border-radius:20px;border:1px solid #F2EEE6;overflow:hidden">${on.length ? on.map((w) => `<div class="row" style="padding:10px 12px;border-bottom:1px solid #F2EEE6">${iconBox(exIcon(w.type), 20, 36)}<span style="flex:1"><b style="font-size:14px">${esc(w.name || EX_NAME[w.type])}</b><span class="small mut" style="display:block">${w.min ? w.min + ' นาที' : ''}</span></span><button class="chip" data-act="exUndo" data-id="${w.id}">ลบ</button></div>`).join('') : '<p class="small mut" style="padding:12px">ยังไม่มี</p>'}</div>`);
   }
   if (s.type === 'plate') {
@@ -904,11 +905,10 @@ function savePlate(items, slot) {
   pl.uses++; pl.slots[slot] = (pl.slots[slot] || 0) + 1; pl.lastUsed = new Date().toISOString();
 }
 function homePlates(slot) {
-  const ok = (db.plates || []).filter((p) => !p.hidden && p.items.every((i) => resolveFood(i.foodId)));
-  const sorted = ok.sort((a, b) => ((b.slots[slot] || 0) * 3 + b.uses) - ((a.slots[slot] || 0) * 3 + a.uses) || (b.lastUsed || '').localeCompare(a.lastUsed || ''));
-  const out = sorted.slice(0, 3).map((p) => ({ plate: p }));
-  for (const m of mealFoods()) { if (out.length >= 3) break; if (!out.some((o) => o.plate && o.plate.items.length === 1 && o.plate.items[0].foodId === m.id)) out.push({ meal: m }); }
-  return out.slice(0, 3);
+  const out = mealFoods().map((m) => ({ meal: m }));
+  const ok = (db.plates || []).filter((p) => !p.hidden && p.items.every((i) => resolveFood(i.foodId)) && !(p.items.length === 1 && out.some((o) => o.meal.id === p.items[0].foodId && (p.items[0].qty || 1) === 1)));
+  ok.sort((a, b) => ((b.slots[slot] || 0) * 3 + b.uses) - ((a.slots[slot] || 0) * 3 + a.uses) || (b.lastUsed || '').localeCompare(a.lastUsed || ''));
+  return out.concat(ok.slice(0, 6).map((p) => ({ plate: p })));
 }
 const shortName = (n) => n.replace(/\s*\(.*?\)\s*/g, ' ').trim();
 function plateName(pl, items) {
@@ -925,7 +925,7 @@ function plateCard(o) {
   return `<button data-act="plateLog" data-id="${esc(id)}" data-press="plateMenu" aria-label="บันทึก ${esc(name)} · กดค้างเพื่อดูทั้งหมด" style="-webkit-touch-callout:none;user-select:none;border:none;border-radius:24px;background:#fff;box-shadow:0 6px 18px rgba(31,31,31,.07);padding:12px 6px 10px;display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;min-width:0">
     <span style="width:74px;height:74px;border-radius:37px;background:#FFF8D6;display:flex;align-items:center;justify-content:center">${plateSvg(foods.map((f) => f.icon))}</span>
     <span style="font-size:12.5px;font-weight:700;margin-top:4px;max-width:100%;line-height:1.25;min-height:2.5em;text-align:center;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;padding:0 4px">${esc(name)}</span>
-    <span class="small mut" style="font-size:11px">${foods.length > 1 ? foods.length + ' อย่าง · ' : ''}${fmt(n.k)} kcal</span>
+    <span class="small mut" style="font-size:11px;white-space:nowrap">${fmt(n.k)} kcal</span>
     <span class="ic" style="position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:12px;background:var(--y);font-size:15px;font-weight:700">+</span></button>`;
 }
 function logItems(items, slot, date) {
@@ -1053,8 +1053,8 @@ function todayBody() {
   const watchMiss = false;
   const wcard = watchMiss ? `<div class="card row" style="margin-top:10px;background:var(--lav);box-shadow:none;gap:10px;padding:10px 12px"><span class="ic" style="width:34px;height:34px;border-radius:17px;background:#fff">${svgI('watch', 20)}</span><button data-act="watchOpen" data-date="${y}" style="flex:1;border:none;background:none;text-align:left;padding:0"><b style="font-size:13px;display:block">เมื่อวานยังไม่ได้กรอก Watch</b><span class="small mut" style="font-size:11px">แตะเพื่อกรอก · เพิ่มโควต้าให้เมื่อวาน</span></button><button data-act="hideWatch" aria-label="ซ่อน" style="border:none;background:none;padding:6px">${xIcon}</button></div>` : '';
   const t = totals(k); const cnt = entriesOn(k).length;
-  return wcard + `<div class="row" style="margin:12px 20px 0;justify-content:space-between;align-items:baseline"><b style="font-size:17px">มื้อ${sname}กินอะไร?</b><span class="small mut">แตะ = บันทึก · กดค้าง = ดูทั้งหมด</span></div>
-    <div class="grid3" style="margin:10px 16px 0;gap:10px">${homePlates(slot).map(plateCard).join('')}</div>
+  return wcard + `<div class="row" style="margin:12px 20px 0;justify-content:space-between;align-items:baseline"><b style="font-size:17px;white-space:nowrap">มื้อ${sname}กินอะไร?</b><span class="small mut" style="white-space:nowrap">แตะ = บันทึก · ค้าง = ดูทั้งหมด</span></div>
+    ${(() => { const hp = homePlates(slot); return `<div class="hscroll" style="margin:10px 0 0;padding:0 16px 4px;display:grid;grid-auto-flow:column;grid-auto-columns:${hp.length > 3 ? 'calc((100% - 52px) / 3.25)' : 'calc((100% - 52px) / 3)'};gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-left:16px">${hp.map(plateCard).join('')}</div>`; })()}
     <button data-act="openBuild" style="margin:12px 16px 0;width:calc(100% - 32px);height:54px;border:none;border-radius:27px;background:#fff;box-shadow:0 6px 18px rgba(31,31,31,.08);display:flex;align-items:center;gap:10px;padding:0 8px 0 18px;color:#8A8A8A;font-size:15px;text-align:left"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg><span style="flex:1">ไม่ใช่จานพวกนี้? ค้นหา / ประกอบจาน</span><span class="ic" style="width:40px;height:40px;border-radius:20px;background:var(--y);font-size:22px;font-weight:700;color:var(--ink)">+</span></button>
     <button data-act="openLog" data-date="${k}" style="margin:10px 18px 0;width:calc(100% - 36px);border:none;background:var(--g);border-radius:22px;min-height:48px;padding:0 16px;display:flex;align-items:center;gap:10px;text-align:left"><span style="flex:1;font-size:14px;font-weight:600">${cnt ? 'วันนี้กินไปแล้ว ' + cnt + ' ครั้ง · ' + fmt(t.k) + ' kcal' : 'ยังไม่ได้บันทึกวันนี้'}</span>${chev('r', 18)}</button>` + finishDayCard();
 }
@@ -1090,9 +1090,15 @@ function exWeekCard(mon) {
   const done = w.weight >= g.weight && w.walk >= g.walk ? '<span class="small" style="text-align:center;font-weight:700;color:#3E7A4E">ครบเป้าสัปดาห์นี้แล้ว เก่งมาก! 🎉</span>' : '';
   return `<div class="card" style="display:flex;flex-direction:column;gap:12px">${head}${exProgress(w)}${others}${done}</div>`;
 }
+function logExCard(d) {
+  const on = exOn(d); const chip = (act, ic, l) => `<button data-act="${act}" data-date="${d}" style="flex:1;height:42px;border-radius:21px;border:1.5px solid #E8E2D0;background:#fff;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:700">${iconBox(ic, 17, 26)}${l}</button>`;
+  return `<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="row"><b style="flex:1;font-size:15px;white-space:nowrap">ออกกำลัง</b>${on.length ? `<button class="chip" data-act="exManageAt" data-date="${d}">แก้/ลบ</button>` : '<span class="small mut">ยังไม่ได้บันทึก</span>'}</div>
+    ${on.length ? `<div class="row" style="gap:6px;flex-wrap:wrap">${on.map((w) => `<span class="badge" style="background:#FFE6D6;color:var(--ink);display:inline-flex;align-items:center;gap:4px">${svgI(exIcon(w.type), 14)}${esc(w.name || EX_NAME[w.type])}${w.min ? ' ' + w.min + "'" : ''}</span>`).join('')}</div>` : ''}
+    <div class="row" style="gap:8px">${chip('exWeight', 'dumbbell', 'เวท')}${chip('exWalk', 'shoe', 'เดินลู่')}${chip('exOther', 'spa', 'อื่นๆ')}</div></div>`;
+}
 function exLog(type, extra = {}) {
-  const w = { id: uid(), userId: db.userId, date: todayKey(), type, createdAt: new Date().toISOString(), schemaVersion: 1, ...extra };
-  db.workouts.push(w); save(); S.sheet = null; render(); openSheet({ type: 'exDone', id: w.id });
+  const w = { id: uid(), userId: db.userId, date: S.exDate || todayKey(), type, createdAt: new Date().toISOString(), schemaVersion: 1, ...extra };
+  db.workouts.push(w); save(); S.exDate = null; S.sheet = null; render(); openSheet({ type: 'exDone', id: w.id });
 }
 function exDoneMsg(w, wk) {
   const g = db.exGoal; const leftW = g.walk - wk.walk; const leftL = g.weight - wk.weight;
@@ -1190,10 +1196,11 @@ const A = {
   groupOpen: (el) => openSheet({ type: 'group', g: el.dataset.g }),
   groupPick: (el) => { closeSheet(); if (S.view === 'build') { trayAdd(el.dataset.id); S.bq = ''; render(); } else A.quickLog({ dataset: { id: el.dataset.id } }); },
   groupNew: (el) => { const g = el.dataset.g; closeSheet(); const back = S.view === 'build' ? 'build' : 'other'; A.addFood({ dataset: { name: '' } }); Object.assign(S.af, { group: g, cat: 'drink', icon: 'milk', unit: 'กล่อง', src: 'label', back }); render(); },
-  exWeight: () => { const on = exOn(todayKey()).find((w) => w.type === 'weight'); if (on) return openSheet({ type: 'exManage' }); exLog('weight', { min: 60 }); },
-  exWalk: () => openSheet({ type: 'walk' }),
-  exOther: () => openSheet({ type: 'exOther', name: 'พิลาทีส' }),
-  exManage: () => openSheet({ type: 'exManage' }),
+  exWeight: (el) => { const d = el.dataset.date || todayKey(); S.exDate = d; const on = exOn(d).find((w) => w.type === 'weight'); if (on) return openSheet({ type: 'exManage', date: d }); exLog('weight', { min: 60 }); },
+  exWalk: (el) => { S.exDate = el.dataset.date || todayKey(); openSheet({ type: 'walk' }); },
+  exOther: (el) => { S.exDate = el.dataset.date || todayKey(); openSheet({ type: 'exOther', name: 'พิลาทีส' }); },
+  exManageAt: (el) => { S.exDate = el.dataset.date; openSheet({ type: 'exManage', date: el.dataset.date }); },
+  exManage: () => openSheet({ type: 'exManage', date: S.exDate || todayKey() }),
   walkMin: (el) => { S.sheet.min = Number(el.dataset.v); S.sheet.minTxt = ''; renderLayer(); },
   walkEdit: () => { S.sheet.edit = true; renderLayer(); },
   walkSave: () => { const s = S.sheet; const P = db.exPrefs; const m = num(s.minTxt) || s.min || P.walkMin; if (!m || m <= 0 || m > 300) return;
@@ -1224,7 +1231,7 @@ const A = {
   afIcon: (el) => { S.af.icon = el.dataset.v; render(); },
   afAllIcons: () => { S.af.allIcons = !S.af.allIcons; render(); },
   logDay: (el) => { S.logDate = addDays(S.logDate || todayKey(), Number(el.dataset.d)); render(); },
-  logAdd: (el) => { S.ctx = { date: S.logDate || todayKey(), slot: el.dataset.slot, ret: 'log' }; S.q = ''; S.comp = null; go('other'); },
+  logAdd: (el) => { S.tray = []; S.bq = ''; S.bslot = el.dataset.slot; S.bdate = S.logDate || todayKey(); S.bback = 'log'; go('build'); },
   dayDone: (el) => markDay(el.dataset.date, 'done'),
   daySpecial: (el) => markDay(el.dataset.date, 'special'),
   dayUndo: (el) => { delete db.dayStatus[el.dataset.date]; save(); render(); },
