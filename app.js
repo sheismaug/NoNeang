@@ -366,7 +366,7 @@ function vWeek() {
       <span class="small mut" style="font-size:11px">เป้า = ส่วนสูง ${p.height} × 0.5 · เอวไม่เกินครึ่งหนึ่งของส่วนสูง</span></div>`;
   } else progress = `<button class="btn g" data-act="nav" data-to="weighin" style="height:48px;font-size:14px">วัดรอบเอวครั้งแรกเพื่อเริ่มดูเหนียง</button>`;
   const lvBars = [0, 1, 2, 3].map((i) => `<span style="flex:1;height:6px;border-radius:3px;background:${i <= lv ? '#FFD000' : '#EFEFEC'}"></span>`).join('');
-  const chinCard = `<div class="card lift" style="display:flex;flex-direction:column;gap:10px">
+  const chinCard = `<div class="card" style="display:flex;flex-direction:column;gap:10px">
     <div class="row" style="gap:12px"><span class="ic" style="width:84px;height:84px;border-radius:26px;background:var(--yll)">${mascot('happy', 76, lv, 'มาสคอตเหนียงระดับ ' + (lv + 1) + ' จาก 4')}</span>
       <div style="flex:1;display:flex;flex-direction:column;gap:4px"><span class="small" style="font-weight:700;color:var(--mut)">${chin.mode === 'weight' ? 'น้ำหนัก (ยังไม่มีรอบเอว)' : 'รอบเอว · ตัวแทนเหนียง'}</span>
         <span class="row" style="gap:6px;align-items:baseline"><b style="font-size:30px;line-height:1">${chin.mode === 'none' ? '–' : r1(chin.cur)}</b><span class="small mut">${chin.mode === 'weight' ? 'kg' : 'cm'}</span>${chin.mode !== 'none' && chin.start - chin.cur > 0 ? `<span class="badge" style="background:var(--greenL);color:#2F6B45">▼ ${r1(chin.start - chin.cur)}</span>` : ''}</span>
