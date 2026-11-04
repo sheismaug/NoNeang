@@ -441,7 +441,7 @@ function vMe() {
       <button data-act="exportJson" style="width:100%;border:none;background:none;min-height:54px;padding:0 16px;display:flex;align-items:center;font-size:15px;font-weight:600;border-bottom:1px solid #F2EEE6"><span style="flex:1;text-align:left">สำรองข้อมูล (JSON)</span>${chev('r', 18)}</button>
       <button data-act="exportCsv" style="width:100%;border:none;background:none;min-height:54px;padding:0 16px;display:flex;align-items:center;font-size:15px;font-weight:600;border-bottom:1px solid #F2EEE6"><span style="flex:1;text-align:left">Export CSV (ไว้วิเคราะห์ต่อ)</span>${chev('r', 18)}</button>
       <label style="width:100%;min-height:54px;padding:0 16px;display:flex;align-items:center;font-size:15px;font-weight:600;cursor:pointer"><span style="flex:1">นำเข้าข้อมูลสำรอง</span><input type="file" accept="application/json" data-input="import" class="sr">${chev('r', 18)}</label></div>
-    <p class="small mut" style="margin:14px 20px;line-height:1.6">${(typeof Cloud !== 'undefined') && Cloud.user ? 'ข้อมูลอยู่ในเครื่องนี้ + สำรองบน Supabase อัตโนมัติ' : 'ข้อมูลเก็บในเครื่องนี้เท่านั้น ถ้าลบแอปหรือล้างข้อมูลเบราว์เซอร์จะหาย · สำรองไว้เป็นระยะ'}<br>ค่าโภชนาการเป็นค่าประมาณ ไม่ใช่คำแนะนำทางการแพทย์</p>` + nav();
+    <p class="small mut" style="margin:14px 20px;line-height:1.6">เวอร์ชัน ${APP_VER} · ${(typeof Cloud !== 'undefined') && Cloud.user ? 'ข้อมูลอยู่ในเครื่องนี้ + สำรองบน Supabase อัตโนมัติ' : 'ข้อมูลเก็บในเครื่องนี้เท่านั้น ถ้าลบแอปหรือล้างข้อมูลเบราว์เซอร์จะหาย · สำรองไว้เป็นระยะ'}<br>ค่าโภชนาการเป็นค่าประมาณ ไม่ใช่คำแนะนำทางการแพทย์</p>` + nav();
 }
 
 /* onboarding */
@@ -1403,4 +1403,11 @@ else {
 }
 render();
 if ((typeof Cloud !== 'undefined')) Cloud.init();
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+const APP_VER = 'v22';
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  const had = !!navigator.serviceWorker.controller; let reloaded = false;
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+  }).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !reloaded) { reloaded = true; location.reload(); } });
+}
