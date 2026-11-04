@@ -1,4 +1,4 @@
-const C = 'noneang-v22';
+const C = 'noneang-v24';
 const SHELL = ['./', 'index.html', 'app.js', 'data.js', 'fooddb.js', 'supabase.js', 'cloud.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(C).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== C).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
