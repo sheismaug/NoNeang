@@ -31,7 +31,7 @@ const Cloud = {
       let sug = null;
       try { const sc = suggestCombos(k, 'all'); const b = sc.combos[0];
         if (b) sug = { items: b.items.map((i) => ({ icon: i.food.icon, q: i.food.kind === 'sized' ? i.grams + 'g' : '×' + i.qty, name: i.food.name })), k: Math.round(b.sum.k), p: Math.round(b.sum.p) }; } catch (e) {}
-      return { date: k, name: db.profile.name || '', goal: Math.round(goalOf(k)), base: Math.round(targetBase(db.profile).value), eaten: Math.round(t.k), protein: Math.round(t.p), pT, fiber: Math.round(t.f), fT: FIBER, streak: streakInfo().cur, loggedToday: LOGGED(k), sug, at: new Date().toISOString() };
+      return { date: k, name: db.profile.name || '', goal: Math.round(goalOf(k)), base: Math.round(goalOf(k)), eaten: Math.round(t.k), protein: Math.round(t.p), pT, fiber: Math.round(t.f), fT: FIBER, streak: streakInfo().cur, loggedToday: LOGGED(k), sug, at: new Date().toISOString() };
     } catch (e) { return null; }
   },
   queue() {

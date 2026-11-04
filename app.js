@@ -33,7 +33,7 @@ const Store = {
   save(d) { d.updatedAt = new Date().toISOString(); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { toast('บันทึกลงเครื่องไม่ได้ (พื้นที่เต็มหรือโหมดส่วนตัว)'); } if ((typeof Cloud !== 'undefined')) Cloud.queue(); }
 };
 let db = Store.load();
-if (db) { db.rewards = db.rewards || []; db.seenRecap = db.seenRecap || {}; db.plates = db.plates || []; db.periodEnds = db.periodEnds || {}; const mk = db.foods.find((f) => f.id === 'milk'); if (mk && !mk.group) mk.group = 'นมโปรตีน'; }
+if (db) { db.rewards = db.rewards || []; db.seenRecap = db.seenRecap || {}; db.plates = db.plates || []; db.periodEnds = db.periodEnds || {}; db.workouts = db.workouts || []; db.exPrefs = db.exPrefs || { walkMin: 30, incline: 10, speed: 4.5 }; db.exGoal = db.exGoal || { weight: 3, walk: 180 }; if (db.profile && !db.profile.flatGoal) db.profile.flatGoal = 1500; const mk = db.foods.find((f) => f.id === 'milk'); if (mk && !mk.group) mk.group = 'นมโปรตีน'; }
 const save = () => Store.save(db);
 
 /* ================= calculations ================= */
@@ -45,7 +45,8 @@ function baseTDEE(p) { return bmr(p) * 1.2; }
 function targetBase(p) { const raw = baseTDEE(p) - PACE[p.pace].def; return { value: Math.max(p.sex === 'm' ? 1500 : 1200, Math.round(raw)), raw: Math.round(raw) }; }
 const activeOf = (k) => db.activity[k] || 0;
 const watchCredit = (k) => Math.round(activeOf(k) * db.profile.watchPct);
-const goalOf = (k) => targetBase(db.profile).value + watchCredit(k);
+const goalOf = (k) => db.profile.flatGoal || 1500;
+const okOf = (k) => goalOf(k) + 100;
 const protPerKg = () => db.profile.protPerKg ?? 1.6;
 const proteinTarget = () => Math.round(protPerKg() * calcW(db.profile));
 const FIBER = 25;
@@ -191,15 +192,12 @@ function vToday() {
     `<div class="card" style="margin-top:-104px;position:relative;padding:16px">
       <div class="row" style="gap:14px">
         <div style="position:relative;width:138px;height:138px;flex-shrink:0">${ring(t.k / goal, 138, 16, '#FFD000', '#FFF3B0', over ? (t.k - goal) / goal : 0)}
-          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">${over ? `<span class="small mut" style="font-weight:600">เกินมา</span><span style="font-size:32px;font-weight:700;color:#C2522E">${fmt(-rem)}</span><span class="small mut" style="font-weight:600">kcal</span>` : `<span style="font-size:34px;font-weight:700;line-height:1.05">${fmt(rem)}</span><span class="small mut" style="font-weight:600">kcal เหลือ</span>`}</div></div>
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">${over ? `<span class="small mut" style="font-weight:600">เกินมา</span><span style="font-size:32px;font-weight:700;color:#C2522E">${fmt(-rem)}</span><span class="small mut" style="font-weight:600">kcal</span>` : `<span style="font-size:34px;font-weight:700;line-height:1.05">${fmt(rem)}</span><span class="small mut" style="font-weight:600">kcal เหลือ</span><span style="font-size:11px;color:#8A8A8A;margin-top:2px">จาก ${fmt(goal)}</span>`}</div></div>
         <div style="flex:1;display:flex;flex-direction:column;gap:10px">
           <div class="row">${fillTile('chicken', Math.min(100, t.p / pT * 100), '#FFC4A3', '#FFF1EA')}<div><div style="font-size:13px;font-weight:700">Protein <span class="mut" style="font-weight:500">${Math.round(t.p)}/${pT}</span></div><div class="small mut">${t.p >= pT ? 'ครบแล้ว ✓' : 'ขาด ' + Math.round(pT - t.p) + ' g'}</div></div></div>
           <div class="row">${fillTile('veg', Math.min(100, t.f / FIBER * 100), '#B7E0C2', '#F1F8F2')}<div><div style="font-size:13px;font-weight:700">Fiber <span class="mut" style="font-weight:500">${Math.round(t.f)}/${FIBER}</span></div><div class="small mut">${t.f >= FIBER ? 'ครบแล้ว ✓' : 'ขาด ' + Math.round(FIBER - t.f) + ' g'}</div></div></div>
         </div></div>
-      <div class="row" style="gap:8px;margin-top:12px">
-        <button data-act="sheet" data-type="watch" style="flex:1;min-height:40px;border-radius:20px;border:none;background:var(--lav);display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:700"><span class="ic" style="width:26px;height:26px;border-radius:13px;background:#fff">${svgI('watch', 16)}</span>Watch +${watchCredit(k)} ${pencil('#5B4FCF')}</button>
-        <span class="small mut" style="min-height:40px;border-radius:20px;background:var(--g);padding:0 12px;display:flex;align-items:center">กินแล้ว ${fmt(t.k)} / ${fmt(goal)}</span>
-      </div></div>` + todayBody() + nav();
+      ${exRow()}</div>` + todayBody() + nav();
 }
 
 function vSuggest() {
@@ -353,8 +351,8 @@ function vWeek() {
   const dsel = S.dsel && days.includes(S.dsel) ? S.dsel : (days.includes(today) ? today : days[0]);
   const complete = days.filter((d) => d < today && entriesOn(d).length && db.dayStatus[d] !== 'skip');
   const avg = complete.length ? complete.reduce((a, d) => a + totals(d).k, 0) / complete.length : 0;
-  const onT = complete.filter((d) => totals(d).k <= goalOf(d)).length;
-  const dots = days.map((d) => { const tt = totals(d).k; const sty = d > today || !entriesOn(d).length ? 'border:1.5px dashed #BDBDBD' : (d === today ? 'background:#FFE88A' : tt > goalOf(d) ? 'background:#FF8A65' : 'background:#FFD000'); return `<span style="width:12px;height:12px;border-radius:6px;${sty};box-sizing:border-box"></span>`; }).join('');
+  const onT = complete.filter((d) => totals(d).k <= okOf(d)).length;
+  const dots = days.map((d) => { const tt = totals(d).k; const sty = d > today || !entriesOn(d).length ? 'border:1.5px dashed #BDBDBD' : (d === today ? 'background:#FFE88A' : tt > okOf(d) ? 'background:#FF8A65' : 'background:#FFD000'); return `<span style="width:12px;height:12px;border-radius:6px;${sty};box-sizing:border-box"></span>`; }).join('');
   const chin = chinCompute(); const lv = chinLevel(); const p = db.profile;
   let progress = '';
   if (chin.mode === 'waist') {
@@ -392,9 +390,9 @@ function vWeek() {
   const st = totals(dsel); const diff = st.k - goalOf(dsel); const isToday = dsel === today;
   const segs = SLOTS.map((s) => [s.name, entriesOn(dsel).filter((e) => e.slot === s.id).reduce((a, e) => a + e.k, 0)]).filter((x) => x[1] > 0);
   const maxK = Math.max(2000, ...days.map((d) => totals(d).k));
-  const bars = days.map((d) => { const tt = totals(d).k; const h = Math.max(6, Math.round(tt / maxK * 112)); const col = d === today ? '#FFE88A' : !tt ? '#EFEFEC' : tt > goalOf(d) ? '#FF8A65' : '#FFD000';
+  const bars = days.map((d) => { const tt = totals(d).k; const h = Math.max(6, Math.round(tt / maxK * 112)); const col = d === today ? '#FFE88A' : !tt ? '#EFEFEC' : tt > okOf(d) ? '#FF8A65' : '#FFD000';
     return `<button data-act="dsel" data-d="${d}" aria-label="${thDate(d)} ${fmt(tt)} kcal" style="border:none;padding:0;width:100%;height:${h}px;border-radius:10px 10px 4px 4px;background:${col};${d === dsel ? 'box-shadow:0 0 0 2.5px #fff,0 0 0 4.5px #1F1F1F' : ''}"></button>`; }).join('');
-  const tg = Math.round(targetBase(p).value / maxK * 112);
+  const tg = Math.round(goalOf(today) / maxK * 112);
   const kcalCard = `<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="row" style="justify-content:space-between"><b style="font-size:15px">กินต่อวัน</b><span class="small mut">เฉลี่ย <b style="color:var(--ink)">${avg ? fmt(avg) : '–'}</b> kcal</span></div>
     <div style="background:var(--g);border-radius:14px;padding:8px 12px;display:flex;flex-direction:column;gap:6px"><div class="row" style="justify-content:space-between;font-size:13px"><b>${TH_DAYS[parseKey(dsel).getDay()]} ${thDate(dsel).split(' ').slice(1).join(' ')}${isToday ? ' (วันนี้)' : ''}</b><span><b style="font-size:16px">${fmt(st.k)}</b> kcal <span class="badge" style="${!st.k ? 'background:var(--g)' : isToday ? 'background:#FFF3B0;color:#5C4700' : diff > 0 ? 'background:#FFE6E0;color:#A33A1E' : 'background:#FFF3B0;color:#5C4700'}">${!st.k ? 'ยังไม่มี' : isToday ? 'ยังไม่จบวัน' : diff > 0 ? 'เกิน ' + fmt(diff) : 'ตามเป้า ✓'}</span></span></div>
       ${segs.length ? `<div class="row" style="gap:6px;flex-wrap:wrap">${segs.map(([n, v]) => `<span style="font-size:11px;background:#fff;border-radius:8px;padding:2px 8px">${n} ${fmt(v)}</span>`).join('')}</div>` : ''}</div>
@@ -404,7 +402,7 @@ function vWeek() {
   const wt = bodySeries('weight'); const wtNow = wt.length ? wt[wt.length - 1].weight : p.startWeight;
   const spark = wt.length >= 2 ? (() => { const v = wt.slice(-8).map((b) => b.weight); const mn = Math.min(...v), mx = Math.max(...v) || 1; return `<svg width="120" height="34" viewBox="0 0 120 34" aria-hidden="true" style="margin-left:auto"><polyline points="${v.map((x, i) => (4 + i * 112 / Math.max(1, v.length - 1)).toFixed(1) + ',' + (4 + (mx - x) / Math.max(0.1, mx - mn) * 26).toFixed(1)).join(' ')}" fill="none" stroke="#BDBDBD" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`; })() : '';
   return hero(ovToggle() + '<span style="display:block">' + (S.weekOff ? 'สัปดาห์ ' + thDate(days[0]) : 'สัปดาห์นี้') + '</span>', thDate(days[0]) + ' – ' + thDate(days[6]), { pb: 62, right: `<span class="row" style="gap:6px"><button class="back" data-act="weekOff" data-d="-1" aria-label="สัปดาห์ก่อน" style="width:36px;height:36px">${chev('l', 16)}</button><span role="img" aria-label="ตามเป้า ${onT} จาก ${complete.length} วัน" style="background:#fff;border-radius:16px;padding:8px 10px;display:flex;gap:4px;box-shadow:0 6px 14px rgba(140,100,0,.15)">${dots}</span>${S.weekOff < 0 ? `<button class="back" data-act="weekOff" data-d="1" aria-label="สัปดาห์ถัดไป" style="width:36px;height:36px">${chev('r', 16)}</button>` : ''}</span>` }) +
-    weekKcalCard(days) + periodCard() + chinCard + `<button class="card row" data-act="openRecap" data-mon="${mon}" style="border:none;width:calc(100% - 32px);margin-top:12px;gap:12px;text-align:left">${mascot('proud', 46)}<span style="flex:1"><b style="font-size:15px">สรุปสัปดาห์นี้</b><span class="small mut" style="display:block">จดครบ ${days.filter(LOGGED).length}/7 วัน · ดูการ์ด + บันทึกเป็นรูป</span></span>${chev('r', 16)}</button>` + chart +
+    weekKcalCard(days) + exWeekCard(days[0]) + periodCard() + chinCard + `<button class="card row" data-act="openRecap" data-mon="${mon}" style="border:none;width:calc(100% - 32px);margin-top:12px;gap:12px;text-align:left">${mascot('proud', 46)}<span style="flex:1"><b style="font-size:15px">สรุปสัปดาห์นี้</b><span class="small mut" style="display:block">จดครบ ${days.filter(LOGGED).length}/7 วัน · ดูการ์ด + บันทึกเป็นรูป</span></span>${chev('r', 16)}</button>` + chart +
     `<div class="card row" style="background:var(--g);box-shadow:none"><span><span class="small mut" style="display:block">น้ำหนัก (ดูประกอบ)</span><b style="font-size:16px">${r1(wtNow)} kg</b> ${wtNow < p.startWeight ? `<span class="small" style="font-weight:600;color:#2F6B45">▼ ${r1(p.startWeight - wtNow)}</span>` : ''}</span>${spark}</div>
     <div style="margin:12px 16px 0"><button class="btn" data-act="nav" data-to="weighin">วัดรอบเอว + ชั่งน้ำหนัก</button></div>` + nav();
 }
@@ -425,12 +423,16 @@ function vMe() {
   const paceBtn = (k, label, icon) => `<button data-act="pace" data-v="${k}" style="border:none;border-radius:24px;padding:14px 4px;display:flex;flex-direction:column;align-items:center;gap:4px;background:${p.pace === k ? '#FFF3B0;box-shadow:0 0 0 2.5px #E8B800' : 'var(--g)'}">${icon}<b style="font-size:15px">${label}</b><span class="small mut">${PACE[k].kg} kg/สัปดาห์</span></button>`;
   const stack = `<div role="img" aria-label="ใช้ต่อวัน ${fmt(baseTDEE(p))} กินได้ ${fmt(tb.value)}" style="align-self:stretch;display:flex;flex-direction:column;gap:6px;margin-top:4px"><div style="display:flex;height:16px;border-radius:8px;overflow:hidden"><span style="flex:${tb.value};background:#FFD000"></span><span style="flex:${Math.max(0, baseTDEE(p) - tb.value)};background:repeating-linear-gradient(135deg,#FFE6E0 0 5px,#fff 5px 10px);border:1.5px dashed #FF8A65;border-radius:0 8px 8px 0"></span></div><div class="row small mut" style="justify-content:space-between;font-size:11px"><span>กินได้ ${fmt(tb.value)}</span><span>ลด ${fmt(baseTDEE(p) - tb.value)}</span><span>ใช้ต่อวัน ${fmt(baseTDEE(p))}</span></div></div>`;
   return hero(esc(p.name || 'ฉัน'), (p.sex === 'm' ? 'ชาย' : 'หญิง') + ' · ' + ageOf(p.birth) + ' ปี · ' + p.height + ' cm · เริ่ม ' + p.startWeight + ' kg', { pb: 70, right: mascot('happy', 90, chinLevel()) }) +
-    `<div class="card lift" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px"><span class="mut" style="font-size:14px">เป้ากินต่อวัน</span><span><b style="font-size:46px">${fmt(tb.value)}</b> <span class="mut">kcal</span></span><span class="small mut">+ ${Math.round(p.watchPct * 100)}% ของที่เผาผลาญจาก Watch ในแต่ละวัน</span>${stack}
-      <button class="link" data-act="sheet" data-type="formula" style="font-weight:700;color:var(--ink)">ตัวเลขนี้มาจากไหน ›</button>${tb.raw < tb.value ? '<span class="small" style="color:#A33A1E">ใช้ขั้นต่ำ ' + fmt(tb.value) + ' kcal เพื่อความปลอดภัย</span>' : ''}</div>
-    <div class="h2">อยากลดเร็วแค่ไหน</div>
-    <div class="grid3" style="margin:0 16px">${paceBtn('slow', 'สบายๆ', '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17c0-4 3-7 7-7s6 3 6 5-1.5 3-3 3H4z" fill="#8FCB9F" stroke="#1F1F1F" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="14" r="2.6" fill="#FFF3B0" stroke="#1F1F1F" stroke-width="1.2"/></svg>')}${paceBtn('rec', 'แนะนำ', '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="#FF7A59" stroke="#1F1F1F" stroke-width="1.3"/><circle cx="12" cy="12" r="4.5" fill="#FFF4E8" stroke="#1F1F1F" stroke-width="1.2"/><circle cx="12" cy="12" r="1.5" fill="#1F1F1F"/></svg>')}${paceBtn('fast', 'เร่ง', '<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L5 14h6l-1 8 8-12h-6z" fill="#FFC75A" stroke="#1F1F1F" stroke-width="1.3" stroke-linejoin="round"/></svg>')}</div>
+    `<div class="card lift" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:18px"><span class="mut" style="font-size:14px">เป้ากินต่อวัน · เท่ากันทุกวัน</span><span><b style="font-size:46px">${fmt(goalOf())}</b> <span class="mut">kcal</span></span><span class="small mut">เกินนิดหน่อยไม่ถึง ${fmt(okOf())} ก็ยังนับว่าโอเค</span>
+      <div class="row" style="gap:8px">${[1400, 1500, 1600].map((v) => `<button class="chip ${goalOf() === v ? 'on' : ''}" data-act="flatGoal" data-v="${v}">${fmt(v)}</button>`).join('')}</div>
+      <span class="small mut" style="text-align:center;line-height:1.5">น้ำหนักไม่ขยับ 3 สัปดาห์ → ลอง 1,400 · เหนื่อย/แรงยกตก → 1,600</span>
+      <button class="link" data-act="sheet" data-type="formula" style="font-weight:700;color:var(--ink)">ตัวเลขนี้มาจากไหน ›</button></div>
+    <div class="h2">เป้าออกกำลังต่อสัปดาห์</div>
+    <div class="card" style="display:flex;flex-direction:column;gap:12px">
+      <div class="row" style="gap:8px">${iconBox('dumbbell', 20, 34)}<b style="flex:1;font-size:14px">เวท</b>${[2, 3, 4].map((v) => `<button class="chip ${db.exGoal.weight === v ? 'on' : ''}" data-act="exGoal" data-k="weight" data-v="${v}">${v} ครั้ง</button>`).join('')}</div>
+      <div class="row" style="gap:8px">${iconBox('shoe', 20, 34)}<b style="flex:1;font-size:14px">เดินลู่</b>${[120, 150, 180].map((v) => `<button class="chip ${db.exGoal.walk === v ? 'on' : ''}" data-act="exGoal" data-k="walk" data-v="${v}">${v}'</button>`).join('')}</div></div>
     <div class="h2">เป้าย่อยต่อวัน</div>
-    <div class="grid3" style="margin:0 16px">${[['chicken', proteinTarget() + ' g', 'Protein'], ['veg', FIBER + ' g', 'Fiber'], ['watch', Math.round(p.watchPct * 100) + '%', 'นับจาก Watch']].map(([i, v, l]) => `<div style="background:var(--g);border-radius:20px;padding:12px">${svgI(i, 22)}<b style="display:block;font-size:19px">${v}</b><span class="small mut">${l}</span></div>`).join('')}</div>
+    <div class="grid3" style="margin:0 16px">${[['chicken', proteinTarget() + ' g', 'Protein'], ['veg', FIBER + ' g', 'Fiber'], ['dumbbell', exWeek(mondayOf(todayKey())).moved + ' วัน', 'ขยับสัปดาห์นี้']].map(([i, v, l]) => `<div style="background:var(--g);border-radius:20px;padding:12px">${svgI(i, 22)}<b style="display:block;font-size:19px">${v}</b><span class="small mut">${l}</span></div>`).join('')}</div>
     ${cloudCard()}
     <div class="card" style="padding:4px 0;margin-top:14px">${[['foods', 'รายการอาหารของฉัน'], ['meals', 'มื้อประจำ (เนื้อสัตว์ + ปริมาณ)'], ['profileEdit', 'แก้ข้อมูลร่างกาย']].map(([a, l]) => `<button data-act="sheet" data-type="${a}" style="width:100%;border:none;background:none;min-height:54px;padding:0 16px;display:flex;align-items:center;font-size:15px;font-weight:600;border-bottom:1px solid #F2EEE6;text-align:left"><span style="flex:1">${l}</span>${chev('r', 18)}</button>`).join('')}
       <button data-act="exportJson" style="width:100%;border:none;background:none;min-height:54px;padding:0 16px;display:flex;align-items:center;font-size:15px;font-weight:600;border-bottom:1px solid #F2EEE6"><span style="flex:1;text-align:left">สำรองข้อมูล (JSON)</span>${chev('r', 18)}</button>
@@ -508,6 +510,37 @@ function sheetHtml() {
     return wrap(`<div class="row"><b style="flex:1;font-size:19px">ไม่รู้ kcal · เลือกขนาด</b>${closeBtn}</div><span class="small mut">ตั้งสูงไว้เล็กน้อย เพราะคนมักประเมินอาหารร้านต่ำกว่าจริง · บันทึกเป็นค่าประมาณ</span>
       ${[['out', 'มื้อนอกบ้าน', 'main'], ['snack', 'ขนม / ของว่าง', 'snack']].map(([k, l, ic]) => `<b style="font-size:14px">${l}</b><div class="grid3">${BUCKETS[k].map(([n, v], i) => `<button data-act="bucketLog" data-k="${k}" data-v="${v}" data-n="${n}" style="border:none;border-radius:18px;background:${['#FFF8D6', '#FFF3B0', '#FFE88A'][i]};padding:12px 4px;display:flex;flex-direction:column;align-items:center;gap:4px">${svgI(ic, 22 + i * 6)}<b>${n}</b><span class="small">${v}</span></button>`).join('')}</div>`).join('')}`);
   }
+  if (s.type === 'walk') {
+    const P = db.exPrefs; const m = s.min ?? P.walkMin; const opts = [20, 30, 45, 60]; const custom = !opts.includes(m);
+    return wrap(`<div class="row">${iconBox('shoe', 28, 52)}<span style="flex:1"><b style="font-size:19px;display:block">เดินลู่วันนี้กี่นาที?</b><span class="small mut">เลือกไว้ให้ตามครั้งล่าสุด</span></span>${closeBtn}</div>
+      <div class="grid3" style="grid-template-columns:repeat(5,minmax(0,1fr));gap:8px">${opts.map((v) => `<button data-act="walkMin" data-v="${v}" style="height:56px;border:none;border-radius:18px;background:${m === v ? 'var(--y)' : 'var(--g)'};display:flex;flex-direction:column;align-items:center;justify-content:center"><b style="font-size:20px;line-height:1">${v}</b><span style="font-size:11px;color:var(--mut)">นาที</span></button>`).join('')}
+        <input data-input="sheet.minTxt" inputmode="numeric" aria-label="ใส่นาทีเอง" placeholder="อื่นๆ" value="${custom ? m : ''}" style="height:56px;border-radius:18px;border:${custom ? '2px solid #FFD000' : '1.5px dashed #CFCFCF'};text-align:center;font-size:17px;font-weight:700;min-width:0"></div>
+      ${s.edit ? `<div class="grid2" style="gap:8px"><div class="field"><label for="w-inc">ความชัน</label><input id="w-inc" inputmode="decimal" data-input="sheet.inc" value="${s.inc ?? P.incline ?? ''}" style="height:48px;border-radius:14px;border:2px solid #FFD000;text-align:center;font-size:17px;font-weight:700"></div><div class="field"><label for="w-sp">ความเร็ว</label><input id="w-sp" inputmode="decimal" data-input="sheet.sp" value="${s.sp ?? P.speed ?? ''}" style="height:48px;border-radius:14px;border:2px solid #FFD000;text-align:center;font-size:17px;font-weight:700"></div></div>`
+        : `<div class="row" style="background:var(--g);border-radius:18px;padding:10px 14px"><span style="flex:1"><span class="small mut" style="display:block">ตั้งค่าลู่ · ใช้ค่าล่าสุด</span><b style="font-size:16px">${P.incline != null ? 'ชัน ' + P.incline + ' · ความเร็ว ' + P.speed : 'ยังไม่ได้ตั้ง'}</b></span><button class="chip" data-act="walkEdit" style="background:#fff">แก้</button></div>`}
+      <span class="small mut" style="text-align:center">ไม่บังคับ · รีบก็กดบันทึกได้เลย</span>
+      <button class="btn" data-act="walkSave">บันทึก ${m || ''} นาที</button>`);
+  }
+  if (s.type === 'exOther') {
+    const recent = [...new Set(['พิลาทีส', ...(db.workouts || []).filter((w) => w.type === 'other').map((w) => w.name)])].slice(0, 5);
+    return wrap(`<div class="row">${iconBox('spa', 28, 52)}<span style="flex:1"><b style="font-size:19px;display:block">ทำอะไรมา?</b><span class="small mut">ไม่มีเป้า ไปเมื่อไหร่ก็บันทึกได้</span></span>${closeBtn}</div>
+      <div class="row" style="gap:8px;flex-wrap:wrap">${recent.map((n) => `<button class="chip ${s.name === n ? 'on' : ''}" data-act="otherPick" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>
+      <input data-input="sheet.name" value="${esc(s.name || '')}" placeholder="หรือพิมพ์เอง เช่น ว่ายน้ำ, โยคะ" aria-label="ชื่อกิจกรรม" style="height:50px;border-radius:16px;border:2px solid #FFD000;padding:0 14px;font-size:16px">
+      <div class="row" style="gap:8px">${[30, 45, 60].map((v) => `<button class="chip ${s.min === v ? 'on' : ''}" data-act="otherMin" data-v="${v}">${v} นาที</button>`).join('')}<span class="small mut">(ไม่ใส่ก็ได้)</span></div>
+      <button class="btn" data-act="otherSave">บันทึก</button>
+      ${(db.workouts || []).some((w) => w.date === todayKey()) ? '<button class="link" data-act="exManage">ดู/ลบที่บันทึกวันนี้</button>' : ''}`);
+  }
+  if (s.type === 'exDone') {
+    const w = db.workouts.find((x) => x.id === s.id); const wk = exWeek(mondayOf(todayKey()));
+    const sub = w.type === 'walk' ? w.min + ' นาที' + (w.incline != null ? ' · ชัน ' + w.incline + ' · ' + w.speed : '') : w.type === 'weight' ? '1 ชั่วโมง' : esc(w.name || 'อื่นๆ') + (w.min ? ' · ' + w.min + ' นาที' : '');
+    return wrap(`<div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="position:relative;display:block">${mascot('proud', 116)}<span style="position:absolute;right:-16px;top:2px;transform:rotate(18deg)">${svgI(exIcon(w.type), 44)}</span></span><b style="font-size:23px;margin-top:6px">ชนะความขี้เกียจอีกวัน!</b><span class="small mut" style="font-size:14px">${w.type === 'weight' || w.type === 'walk' ? EX_NAME[w.type] : ''} ${sub}</span></div>
+      <div style="background:#FFFBEB;border-radius:22px;padding:14px 16px;display:flex;flex-direction:column;gap:10px"><span class="small" style="font-weight:700;color:var(--mut)">สัปดาห์นี้</span>${exProgress(wk)}<span class="small" style="text-align:center;font-weight:700;color:#3E7A4E">${exDoneMsg(w, wk)}</span></div>
+      <button class="btn" data-act="close">เย้ 🎉</button><button class="link" data-act="exUndo" data-id="${w.id}">กดผิด · ลบอันนี้</button>`);
+  }
+  if (s.type === 'exManage') {
+    const on = exOn(todayKey());
+    return wrap(`<div class="row"><b style="flex:1;font-size:19px">ขยับวันนี้</b>${closeBtn}</div>
+      <div style="border-radius:20px;border:1px solid #F2EEE6;overflow:hidden">${on.length ? on.map((w) => `<div class="row" style="padding:10px 12px;border-bottom:1px solid #F2EEE6">${iconBox(exIcon(w.type), 20, 36)}<span style="flex:1"><b style="font-size:14px">${esc(w.name || EX_NAME[w.type])}</b><span class="small mut" style="display:block">${w.min ? w.min + ' นาที' : ''}</span></span><button class="chip" data-act="exUndo" data-id="${w.id}">ลบ</button></div>`).join('') : '<p class="small mut" style="padding:12px">ยังไม่มี</p>'}</div>`);
+  }
   if (s.type === 'plate') {
     const pl = s.id.startsWith('meal:') ? null : (db.plates || []).find((x) => x.id === s.id); const items = pl ? pl.items : [{ foodId: s.id.slice(5), qty: 1 }];
     const tot = plateNutr(items);
@@ -550,10 +583,11 @@ function sheetHtml() {
   if (s.type === 'formula') {
     const p = db.profile; const tb = targetBase(p);
     return wrap(`<div class="row"><b style="flex:1;font-size:19px">เป้ามาจากไหน</b>${closeBtn}</div>
-      ${[['BMR (Mifflin-St Jeor)', fmt(bmr(p))], ['× 1.2 นั่งทำงาน = ใช้ต่อวัน', fmt(baseTDEE(p))], ['− ' + PACE[p.pace].def + ' เพื่อลด ' + PACE[p.pace].kg + ' kg/สัปดาห์', fmt(tb.raw)], ['ขั้นต่ำเพื่อความปลอดภัย', p.sex === 'm' ? '1,500' : '1,200'], ['เป้าฐานต่อวัน', fmt(tb.value)]].map(([l, v], i) => `<div class="row" style="${i === 4 ? 'background:var(--y);border-radius:16px;padding:10px 12px' : 'padding:0 4px'}"><span style="flex:1;font-size:14px">${l}</span><b style="font-size:${i === 4 ? 22 : 17}px">${v}</b></div>`).join('')}
-      <span class="small mut" style="line-height:1.6">บวก ${Math.round(p.watchPct * 100)}% ของ active kcal จาก Watch ทุกวัน · ใช้ ×1.2 เป็นฐานเพื่อไม่นับการออกกำลังซ้ำ · protein ${protPerKg()} g/kg = ${proteinTarget()} g</span>
+      ${[['BMR (Mifflin-St Jeor)', fmt(bmr(p))], ['× 1.2 นั่งทำงาน = ใช้ต่อวัน', fmt(baseTDEE(p))], ['− ' + PACE[p.pace].def + ' เพื่อลด ' + PACE[p.pace].kg + ' kg/สัปดาห์', fmt(tb.raw)], ['ขั้นต่ำเพื่อความปลอดภัย', p.sex === 'm' ? '1,500' : '1,200'], ['คำนวณแบบไม่นับออกกำลัง', fmt(tb.value)]].map(([l, v], i) => `<div class="row" style="${i === 4 ? 'background:var(--y);border-radius:16px;padding:10px 12px' : 'padding:0 4px'}"><span style="flex:1;font-size:14px">${l}</span><b style="font-size:${i === 4 ? 22 : 17}px">${v}</b></div>`).join('')}
+      <div class="row" style="background:var(--yll);border-radius:16px;padding:10px 14px"><b style="flex:1;font-size:14px">ที่ใช้จริง (เลือกเอง)</b><b style="font-size:18px">${fmt(goalOf())}</b></div>
+      <span class="small mut" style="line-height:1.6">ตัวเลขข้างบนคือการคำนวณแบบไม่นับออกกำลัง · เป้า ${fmt(goalOf())} รวมการออกกำลังเฉลี่ยของคุณไว้แล้ว จึงไม่ต้องกรอก Watch · ดูน้ำหนักทุก 2–3 สัปดาห์แล้วค่อยปรับ · protein ${protPerKg()} g/kg</span>
       <div class="row"><b style="flex:1;font-size:14px">Protein g/kg</b>${[1.2, 1.4, 1.6, 2.0].map((v) => `<button class="chip ${protPerKg() === v ? 'on' : ''}" data-act="protKg" data-v="${v}">${v}</button>`).join('')}</div>
-      <div class="row"><b style="flex:1;font-size:14px">นับจาก Watch</b>${[0.5, 0.6, 0.7, 0.8].map((v) => `<button class="chip ${p.watchPct === v ? 'on' : ''}" data-act="watchPct" data-v="${v}">${v * 100}%</button>`).join('')}</div>`);
+`);
   }
   if (s.type === 'foods') {
     const list = db.foods.filter((f) => !f.deleted).sort((a, b) => (b.addon - a.addon) || a.name.localeCompare(b.name, 'th'));
@@ -960,22 +994,25 @@ function periodCard() {
 function ovToggle() { const m = S.ovMode === 'month'; return `<div class="row" style="background:#fff;border-radius:18px;padding:3px;gap:2px;align-self:flex-start;position:relative;margin-bottom:6px"><button data-act="ovMode" data-v="week" style="border:none;padding:6px 14px;border-radius:15px;font-size:13px;font-weight:700;${m ? 'background:none;color:#5E5E5E' : 'background:rgba(31,31,31,.07)'}">สัปดาห์</button><button data-act="ovMode" data-v="month" style="border:none;padding:6px 14px;border-radius:15px;font-size:13px;font-weight:700;${m ? 'background:rgba(31,31,31,.07)' : 'background:none;color:#5E5E5E'}">เดือน</button></div>`; }
 function weekKcalCard(days) {
   const today = todayKey(); const pdays = periodDays(); const H = 140;
-  const done = days.filter((d) => d < today && entriesOn(d).length); const inT = done.filter((d) => totals(d).k <= goalOf(d)).length;
+  const done = days.filter((d) => d < today && entriesOn(d).length); const inT = done.filter((d) => totals(d).k <= okOf(d)).length;
   const avg = done.length ? done.reduce((a, d) => a + totals(d).k, 0) / done.length : 0;
   const mx = Math.max(1800, ...days.map((d) => totals(d).k));
   const names = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'];
-  const cols = days.map((d, i) => { const k = totals(d).k; const has = entriesOn(d).length > 0; const over = has && d < today && k > goalOf(d); const isT = d === today; const per = pdays.has(d);
+  const cols = days.map((d, i) => { const k = totals(d).k; const has = entriesOn(d).length > 0; const over = has && d < today && k > okOf(d); const isT = d === today; const per = pdays.has(d);
     const col = !has ? 'transparent' : isT ? '#FFE88A' : over ? '#FF8A65' : '#FFD000'; const h = has ? Math.max(6, Math.round(k / mx * H)) : 0;
     return `<button data-act="dayPeriod" data-d="${d}" aria-label="${thDate(d)} ${has ? fmt(k) + ' kcal' : 'ไม่ได้จด'}" style="flex:1;border:none;background:${per ? '#FDE7EE' : 'none'};border-radius:12px;padding:6px 0;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0">
       <span style="height:12px">${per ? DROP() : ''}</span>
-      <span style="height:${H}px;width:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px">${has ? `<span style="font-size:10px;font-weight:700;color:${over ? '#C2522E' : '#5E5E5E'}">${fmt(k)}</span>` : (d < today && d >= db.profile.startDate ? '<span style="font-size:10px;color:#B0ABA0">–</span>' : '')}<span style="width:24px;height:${h}px;border-radius:9px 9px 5px 5px;background:${col}"></span></span>
-      <span style="font-size:12px;font-weight:700;color:${isT ? 'var(--ink)' : 'var(--mut)'}">${names[i]}</span></button>`; }).join('');
+      <span style="height:${H}px;width:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center"><span style="position:relative;z-index:1;width:24px;height:${h}px;border-radius:9px 9px 5px 5px;background:${col}"></span></span>
+      <span style="font-size:12px;font-weight:700;color:${isT ? 'var(--ink)' : 'var(--mut)'}">${names[i]}</span>
+      <span style="font-size:10px;font-weight:600;height:13px;color:${over ? '#C2522E' : '#5E5E5E'}">${has ? fmt(k) : (d < today && d >= db.profile.startDate ? '–' : '')}</span>
+      <span style="height:16px;display:flex;gap:1px">${[...new Set(exOn(d).map((w) => exIcon(w.type)))].map((ic) => svgI(ic, 15)).join('')}</span></button>`; }).join('');
+  const lineY = 12 + 3 + 6 + H - Math.round(goalOf(today) / mx * H);
   const stat = (big, small, bg) => `<div style="flex:1;background:${bg};border-radius:18px;padding:10px 12px"><b style="font-size:22px;display:block;line-height:1.1">${big}</b><span class="small mut" style="font-size:11px">${small}</span></div>`;
   const leg = (c, t) => `<span class="row" style="gap:5px"><span style="width:12px;height:12px;border-radius:4px;background:${c}"></span>${t}</span>`;
   return `<div class="card" style="padding:12px 10px;display:flex;flex-direction:column;gap:10px">
-    <div class="row" style="gap:8px;padding:0 2px">${stat(done.length ? inT + ' / ' + done.length + ' วัน' : '–', 'กินอยู่ในเป้า', 'var(--yll)')}${stat(avg ? fmt(avg) : '–', 'kcal เฉลี่ยต่อวัน', 'var(--g)')}</div>
-    <div class="row" style="gap:2px;align-items:stretch">${cols}</div>
-    <div class="row small mut" style="gap:14px;font-size:11px;padding:8px 4px 0;border-top:1px solid #F2EEE6;flex-wrap:wrap">${leg('#FFD000', 'ในเป้า')}${leg('#FF8A65', 'เกินเป้า')}${leg('#FDE7EE', 'มีประจำเดือน')}</div></div>`;
+    <div class="row" style="gap:8px;padding:0 2px">${stat(avg ? fmt(avg) : '–', 'kcal เฉลี่ย/วัน' + (avg ? (avg <= okOf(today) ? ' · ในเป้า ✓' : ' · เกินนิด') : ''), 'var(--yll)')}${stat(exWeek(days[0]).moved + ' วัน', 'ที่ได้ขยับ 💪', 'var(--g)')}</div>
+    <div class="row" style="gap:2px;align-items:stretch;position:relative"><span style="position:absolute;left:0;right:0;top:${lineY}px;border-top:2px dashed #E6B800"></span><span style="position:absolute;right:0;top:${lineY - 14}px;font-size:10px;font-weight:700;color:#B38F00;background:#fff;padding:0 3px;z-index:2">${fmt(goalOf(today))}</span>${cols}</div>
+    <div class="row small mut" style="gap:12px;font-size:11px;padding:8px 4px 0;border-top:1px solid #F2EEE6;flex-wrap:wrap">${leg('#FFD000', 'ไม่เกิน ' + fmt(okOf(today)))}${leg('#FF8A65', 'เกิน')}${leg('#FDE7EE', 'มีประจำเดือน')}</div></div>`;
 }
 
 /* ---- overview: month ---- */
@@ -984,19 +1021,19 @@ function vMonth() {
   const Y = base.getFullYear(), M = base.getMonth() + 1; const ym = Y + '-' + pad(M); const first = ym + '-01'; const nDays = new Date(Y, M, 0).getDate(); const last = ym + '-' + pad(nDays);
   const off = (parseKey(first).getDay() + 6) % 7; const pdays = periodDays();
   const all = [...Array(nDays)].map((_, i) => ym + '-' + pad(i + 1));
-  const done = all.filter((d) => d < today && entriesOn(d).length); const inT = done.filter((d) => totals(d).k <= goalOf(d)).length;
+  const done = all.filter((d) => d < today && entriesOn(d).length); const inT = done.filter((d) => totals(d).k <= okOf(d)).length;
   const avg = done.length ? done.reduce((a, d) => a + totals(d).k, 0) / done.length : 0;
   const wIn = bodySeries('waist').filter((b) => b.date >= first && b.date <= last); const wBefore = bodySeries('waist').filter((b) => b.date < first);
   const startW = wBefore.length ? wBefore[wBefore.length - 1].waist : (wIn[0] && wIn[0].waist); const endW = wIn.length ? wIn[wIn.length - 1].waist : null;
   const wd = endW != null && startW != null && (wBefore.length || wIn.length > 1) ? r1(endW - startW) : null;
   const cells = '<span></span>'.repeat(off) + all.map((d, i) => { const has = entriesOn(d).length > 0; const isT = d === today;
-    const st = d > today || d < db.profile.startDate ? 'background:transparent;color:#B0ABA0' : isT ? 'background:#FFE88A;box-shadow:inset 0 0 0 2px #1F1F1F' : !has ? 'background:#F1EEE6;color:#8A8A8A' : totals(d).k > goalOf(d) ? 'background:#FF8A65;color:#fff' : 'background:#FFD000';
+    const st = d > today || d < db.profile.startDate ? 'background:transparent;color:#B0ABA0' : isT ? 'background:#FFE88A;box-shadow:inset 0 0 0 2px #1F1F1F' : !has ? 'background:#F1EEE6;color:#8A8A8A' : totals(d).k > okOf(d) ? 'background:#FF8A65;color:#fff' : 'background:#FFD000';
     return `<button data-act="dayPeriod" data-d="${d}" aria-label="${thDate(d)}" style="border:none;width:38px;height:38px;border-radius:12px;${st};font-size:13px;font-weight:700;justify-self:center;position:relative;padding:0">${i + 1}${pdays.has(d) ? `<span class="ic" style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:9px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.15)">${DROP(12)}</span>` : ''}</button>`; }).join('');
   // weeks
   const weeks = []; let wk = mondayOf(first); while (wk <= last) { weeks.push(wk); wk = addDays(wk, 7); }
   const tiles = weeks.slice(0, 5).map((m, i) => { const ds = [...Array(7)].map((_, j) => addDays(m, j)).filter((d) => d >= first && d <= last && d < today && entriesOn(d).length);
     if (!ds.length) return `<div style="flex:1;border:2px dashed #E8E4D8;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#B0ABA0;font-size:11px;font-weight:700;min-height:120px"><span>W${i + 1}</span>${m > today ? 'ยังไม่ถึง' : 'ไม่มีข้อมูล'}</div>`;
-    const a = ds.reduce((s, d) => s + totals(d).k, 0) / ds.length; const g = ds.reduce((s, d) => s + goalOf(d), 0) / ds.length; const over = a > g;
+    const a = ds.reduce((s, d) => s + totals(d).k, 0) / ds.length; const g = ds.reduce((s, d) => s + okOf(d), 0) / ds.length; const over = a > g;
     return `<div style="flex:1;background:${over ? '#FFE6E0' : '#FFF3B0'};border-radius:20px;padding:10px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0"><span style="font-size:11px;font-weight:700;color:var(--mut)">W${i + 1}</span><span class="ic" style="width:50px;height:50px;border-radius:25px;background:#fff;margin:2px 0">${mascot(over ? 'calm' : 'yay', 42)}</span><b style="font-size:16px">${fmt(a)}</b><span style="font-size:10px;font-weight:700;color:${over ? '#C2522E' : '#2F6B45'}">${over ? 'เกิน ' + fmt(a - g) : 'ในเป้า ✓'}</span></div>`; }).join('');
   const stat = (big, small, bg) => `<div style="flex:1;background:${bg};border-radius:18px;padding:10px 12px;min-width:0"><b style="font-size:19px;display:block;line-height:1.15">${big}</b><span class="small mut" style="font-size:11px">${small}</span></div>`;
   const leg = (sw, t) => `<span class="row" style="gap:5px">${sw}${t}</span>`; const sq = (c) => `<span style="width:12px;height:12px;border-radius:4px;background:${c}"></span>`;
@@ -1013,13 +1050,56 @@ function vMonth() {
 
 function todayBody() {
   const k = todayKey(); const slot = slotNow(); const sname = SLOTS.find((s) => s.id === slot).name; const y = addDays(k, -1);
-  const watchMiss = !S.hideWatch && y >= db.profile.startDate && entriesOn(y).length && !db.activity[y];
+  const watchMiss = false;
   const wcard = watchMiss ? `<div class="card row" style="margin-top:10px;background:var(--lav);box-shadow:none;gap:10px;padding:10px 12px"><span class="ic" style="width:34px;height:34px;border-radius:17px;background:#fff">${svgI('watch', 20)}</span><button data-act="watchOpen" data-date="${y}" style="flex:1;border:none;background:none;text-align:left;padding:0"><b style="font-size:13px;display:block">เมื่อวานยังไม่ได้กรอก Watch</b><span class="small mut" style="font-size:11px">แตะเพื่อกรอก · เพิ่มโควต้าให้เมื่อวาน</span></button><button data-act="hideWatch" aria-label="ซ่อน" style="border:none;background:none;padding:6px">${xIcon}</button></div>` : '';
   const t = totals(k); const cnt = entriesOn(k).length;
   return wcard + `<div class="row" style="margin:12px 20px 0;justify-content:space-between;align-items:baseline"><b style="font-size:17px">มื้อ${sname}กินอะไร?</b><span class="small mut">แตะ = บันทึก · กดค้าง = ดูทั้งหมด</span></div>
     <div class="grid3" style="margin:10px 16px 0;gap:10px">${homePlates(slot).map(plateCard).join('')}</div>
     <button data-act="openBuild" style="margin:12px 16px 0;width:calc(100% - 32px);height:54px;border:none;border-radius:27px;background:#fff;box-shadow:0 6px 18px rgba(31,31,31,.08);display:flex;align-items:center;gap:10px;padding:0 8px 0 18px;color:#8A8A8A;font-size:15px;text-align:left"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg><span style="flex:1">ไม่ใช่จานพวกนี้? ค้นหา / ประกอบจาน</span><span class="ic" style="width:40px;height:40px;border-radius:20px;background:var(--y);font-size:22px;font-weight:700;color:var(--ink)">+</span></button>
     <button data-act="openLog" data-date="${k}" style="margin:10px 18px 0;width:calc(100% - 36px);border:none;background:var(--g);border-radius:22px;min-height:48px;padding:0 16px;display:flex;align-items:center;gap:10px;text-align:left"><span style="flex:1;font-size:14px;font-weight:600">${cnt ? 'วันนี้กินไปแล้ว ' + cnt + ' ครั้ง · ' + fmt(t.k) + ' kcal' : 'ยังไม่ได้บันทึกวันนี้'}</span>${chev('r', 18)}</button>` + finishDayCard();
+}
+
+/* ---- exercise (v8) ---- */
+const EX_NAME = { weight: 'เวท', walk: 'เดินลู่', pilates: 'พิลาทีส' };
+const exIcon = (t) => (t === 'weight' ? 'dumbbell' : t === 'walk' ? 'shoe' : 'spa');
+const exOn = (d) => (db.workouts || []).filter((w) => w.date === d);
+function exWeek(mon) {
+  const end = addDays(mon, 6); const ws = (db.workouts || []).filter((w) => w.date >= mon && w.date <= end);
+  return { weight: ws.filter((w) => w.type === 'weight').length, walk: ws.filter((w) => w.type === 'walk').reduce((a, w) => a + (w.min || 0), 0), other: ws.filter((w) => w.type !== 'weight' && w.type !== 'walk'), moved: new Set(ws.map((w) => w.date)).size, list: ws };
+}
+function exRow() {
+  const t = todayKey(); const on = exOn(t); const has = (ty) => on.some((w) => w.type === ty); const wm = on.filter((w) => w.type === 'walk').reduce((a, w) => a + (w.min || 0), 0);
+  const otherN = on.filter((w) => w.type !== 'weight' && w.type !== 'walk').length;
+  const btn = (act, ty, label, done) => `<button data-act="${act}" style="flex:1;height:40px;border-radius:20px;${done ? 'border:none;background:#FFE6D6' : 'border:1.5px solid #E8E2D0;background:#fff'};display:flex;align-items:center;justify-content:center;gap:5px;font-size:13px;font-weight:700;min-width:0;white-space:nowrap;padding:0 6px">${iconBox(exIcon(ty), 17, 26)}${label}${done ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>' : ''}</button>`;
+  return `<div class="row" style="gap:8px;margin-top:12px;border-top:1px solid #F2EEE6;padding-top:12px"><span style="font-size:13px;font-weight:700;white-space:nowrap">วันนี้ขยับ</span>
+    ${btn('exWeight', 'weight', 'เวท', has('weight'))}${btn('exWalk', 'walk', wm ? 'เดิน ' + wm + "'" : 'เดินลู่', wm > 0)}
+    <button data-act="exOther" aria-label="ออกกำลังอย่างอื่น" style="width:40px;height:40px;border-radius:20px;border:none;background:${otherN ? '#E7F4EA' : 'var(--g)'};display:flex;align-items:center;justify-content:center;flex-shrink:0">${otherN ? svgI('spa', 20) : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'}</button></div>`;
+}
+function exDots(n, t) { return [...Array(Math.max(t, n))].map((_, i) => `<span style="width:22px;height:22px;border-radius:11px;${i < n ? 'background:#FF9C85' : 'background:#fff;border:2px dashed #F5C2B3;box-sizing:border-box'};display:flex;align-items:center;justify-content:center">${i < n ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>' : ''}</span>`).join(''); }
+function exProgress(w) {
+  const g = db.exGoal; const pct = Math.min(100, w.walk / g.walk * 100);
+  return `<div class="row" style="gap:10px">${iconBox('dumbbell', 20, 34)}<b style="font-size:14px;width:52px">เวท</b><span class="row" style="gap:6px;flex:1;flex-wrap:wrap">${exDots(w.weight, g.weight)}</span><b style="font-size:13px;white-space:nowrap">${w.weight}/${g.weight} ครั้ง</b></div>
+    <div class="row" style="gap:10px">${iconBox('shoe', 20, 34)}<b style="font-size:14px;width:52px">เดินลู่</b><span style="flex:1;height:14px;border-radius:7px;background:#E3F2E7;position:relative;overflow:hidden"><span style="position:absolute;left:0;top:0;bottom:0;width:${pct}%;background:#8FCB9F;border-radius:7px"></span></span><b style="font-size:13px;white-space:nowrap">${w.walk}/${g.walk} นาที</b></div>`;
+}
+function exWeekCard(mon) {
+  const w = exWeek(mon); const g = db.exGoal; const isNow = mon === mondayOf(todayKey());
+  const empty = !w.list.length;
+  const others = w.other.length ? `<div class="row" style="gap:10px">${iconBox('spa', 20, 34)}<span class="small">${[...new Set(w.other.map((x) => x.name || EX_NAME[x.type] || 'อื่นๆ'))].map(esc).join(', ')} · ${w.other.length} ครั้ง ✨</span></div>` : '';
+  const head = empty && isNow ? `<div class="row" style="gap:12px">${mascot('calm', 52)}<span><b style="font-size:15px;display:block">สัปดาห์นี้ยังไม่ได้ขยับ ไม่เป็นไรนะ</b><span class="small mut">เดิน 20 นาทีก็นับแล้ว · เริ่มใหม่ได้ทุกวัน</span></span></div>`
+    : `<div class="row" style="justify-content:space-between"><b style="font-size:15px">ออกกำลัง${isNow ? 'สัปดาห์นี้' : ''}</b><span class="small mut">เป้า เวท ${g.weight} · เดิน ${g.walk} นาที</span></div>`;
+  const done = w.weight >= g.weight && w.walk >= g.walk ? '<span class="small" style="text-align:center;font-weight:700;color:#3E7A4E">ครบเป้าสัปดาห์นี้แล้ว เก่งมาก! 🎉</span>' : '';
+  return `<div class="card" style="display:flex;flex-direction:column;gap:12px">${head}${exProgress(w)}${others}${done}</div>`;
+}
+function exLog(type, extra = {}) {
+  const w = { id: uid(), userId: db.userId, date: todayKey(), type, createdAt: new Date().toISOString(), schemaVersion: 1, ...extra };
+  db.workouts.push(w); save(); S.sheet = null; render(); openSheet({ type: 'exDone', id: w.id });
+}
+function exDoneMsg(w, wk) {
+  const g = db.exGoal; const leftW = g.walk - wk.walk; const leftL = g.weight - wk.weight;
+  if (wk.weight >= g.weight && wk.walk >= g.walk) return 'ครบเป้าสัปดาห์นี้แล้ว! 🎉';
+  if (w.type === 'walk' && leftW > 0 && leftW <= 45) return 'อีกนิดเดียว! เดินอีก ' + leftW + ' นาทีครบเป้าคาร์ดิโอ';
+  if (w.type === 'weight' && leftL === 1) return 'อีก 1 ครั้งครบเป้าเวทสัปดาห์นี้';
+  return ['ทุกนาทีนับหมด', 'มาแล้วก็ชนะแล้ว', 'ร่างกายขอบคุณนะ'][wk.list.length % 3];
 }
 
 /* ================= render ================= */
@@ -1110,6 +1190,21 @@ const A = {
   groupOpen: (el) => openSheet({ type: 'group', g: el.dataset.g }),
   groupPick: (el) => { closeSheet(); if (S.view === 'build') { trayAdd(el.dataset.id); S.bq = ''; render(); } else A.quickLog({ dataset: { id: el.dataset.id } }); },
   groupNew: (el) => { const g = el.dataset.g; closeSheet(); const back = S.view === 'build' ? 'build' : 'other'; A.addFood({ dataset: { name: '' } }); Object.assign(S.af, { group: g, cat: 'drink', icon: 'milk', unit: 'กล่อง', src: 'label', back }); render(); },
+  exWeight: () => { const on = exOn(todayKey()).find((w) => w.type === 'weight'); if (on) return openSheet({ type: 'exManage' }); exLog('weight', { min: 60 }); },
+  exWalk: () => openSheet({ type: 'walk' }),
+  exOther: () => openSheet({ type: 'exOther', name: 'พิลาทีส' }),
+  exManage: () => openSheet({ type: 'exManage' }),
+  walkMin: (el) => { S.sheet.min = Number(el.dataset.v); S.sheet.minTxt = ''; renderLayer(); },
+  walkEdit: () => { S.sheet.edit = true; renderLayer(); },
+  walkSave: () => { const s = S.sheet; const P = db.exPrefs; const m = num(s.minTxt) || s.min || P.walkMin; if (!m || m <= 0 || m > 300) return;
+    if (s.edit) { const inc = num(s.inc ?? P.incline); const sp = num(s.sp ?? P.speed); P.incline = inc; P.speed = sp; }
+    P.walkMin = m; exLog('walk', { min: m, incline: P.incline ?? null, speed: P.speed ?? null }); },
+  otherPick: (el) => { S.sheet.name = el.dataset.v; renderLayer(); },
+  otherMin: (el) => { const v = Number(el.dataset.v); S.sheet.min = S.sheet.min === v ? null : v; renderLayer(); },
+  otherSave: () => { const s = S.sheet; const n = (s.name || '').trim() || 'อื่นๆ'; exLog(n === 'พิลาทีส' ? 'pilates' : 'other', { name: n, min: s.min || null }); },
+  exUndo: (el) => { db.workouts = db.workouts.filter((w) => w.id !== el.dataset.id); save(); closeSheet(); render(); toast('ลบแล้ว'); },
+  flatGoal: (el) => { db.profile.flatGoal = Number(el.dataset.v); save(); render(); },
+  exGoal: (el) => { db.exGoal[el.dataset.k] = Number(el.dataset.v); save(); render(); },
   plateMenu: (el) => openSheet({ type: 'plate', id: el.dataset.id }),
   plateLogSheet: (el) => { closeSheet(); A.plateLog(el); },
   plateRename: () => { const s = S.sheet; const pl = db.plates.find((x) => x.id === s.id); if (pl) { pl.name = (s.name ?? pl.name ?? '').trim() || undefined; save(); } closeSheet(); render(); },
@@ -1178,7 +1273,7 @@ const A = {
     if (w == null && ws == null) { err.textContent = 'ใส่น้ำหนักหรือรอบเอวอย่างน้อยหนึ่งค่า'; return; }
     if ((w != null && (w < 25 || w > 300)) || (ws != null && (ws < 40 || ws > 200))) { err.textContent = 'ตัวเลขดูไม่ปกติ ลองตรวจอีกครั้ง'; return; }
     db.body.push({ id: uid(), userId: db.userId, date: todayKey(), weight: w, waist: ws, createdAt: new Date().toISOString(), schemaVersion: 1 }); if (ws != null) updateChin(); save(); toast('บันทึกแล้ว · ' + [w != null ? w + ' kg' : '', ws != null ? ws + ' cm' : ''].filter(Boolean).join(' · ')); go('week');
-    const old = calcW(db.profile); if (w != null && Math.abs(w - old) >= 2) { const from = targetBase(db.profile).value; const to = targetBase({ ...db.profile, calcWeight: w }).value; if (from !== to) openSheet({ type: 'rebase', w, old, from, to }); } },
+    const old = calcW(db.profile); if (false && w != null && Math.abs(w - old) >= 2) { const from = targetBase(db.profile).value; const to = targetBase({ ...db.profile, calcWeight: w }).value; if (from !== to) openSheet({ type: 'rebase', w, old, from, to }); } },
   pace: (el) => { db.profile.pace = el.dataset.v; save(); render(); },
   mealToggle: (el) => { const p = db.profile; const v = el.dataset.v; p.meats = p.meats.includes(v) ? (p.meats.length > 1 ? p.meats.filter((x) => x !== v) : p.meats) : [...p.meats, v].slice(0, 4); save(); renderLayer(); },
   mealStep: (el) => { const p = db.profile; p[el.dataset.k] = Math.max(0, Math.min(400, p[el.dataset.k] + Number(el.dataset.d))); save(); renderLayer(); },
@@ -1234,6 +1329,7 @@ document.addEventListener('input', (ev) => {
   if (k === 'rwName') { S.rw.name = el.value; return; }
   if (k === 'bq') { S.bq = el.value; refreshBuild(); return; }
   if (k === 'sheet.name') { S.sheet.name = el.value; return; }
+  if (k === 'sheet.minTxt' || k === 'sheet.inc' || k === 'sheet.sp') { S.sheet[k.slice(6)] = el.value; return; }
   if (k === 'clEmail' || k === 'clPw') { S.sheet[k] = k === 'clPw' ? el.value : el.value.trim(); return; }
   const [obj, field] = k.split('.');
   if (obj === 'ob') S.ob[field] = el.value; else if (obj === 'af') S.af[field] = el.value; else if (obj === 'wi') S.wi[field] = el.value; else if (obj === 'lb' || obj === 'pe') S.sheet[field] = el.value;
