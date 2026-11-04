@@ -259,8 +259,10 @@ function parseComposite(q) {
 }
 function searchFoods(q) {
   const s = q.trim().toLowerCase(); if (!s) return [];
-  const hit = (f) => f.name.toLowerCase().includes(s) || (f.aliases || []).some((a) => a.includes(s) || (a.length >= 4 && s.startsWith(a)));
-  const mine = db.foods.filter((f) => !f.deleted && hit(f)).sort((a, b) => (b.uses || 0) - (a.uses || 0));
+  const norm = (x) => x.toLowerCase().replace(/[\s+]/g, ''); const sn = norm(s);
+  const hit = (f) => f.name.toLowerCase().includes(s) || (sn && norm(f.name).includes(sn)) || (f.aliases || []).some((a) => a.includes(s) || (a.length >= 4 && s.startsWith(a)));
+  const meals = mealFoods().filter((m) => hit(m) || (m.full && norm(m.full).includes(sn)));
+  const mine = [...meals, ...db.foods.filter((f) => !f.deleted && hit(f)).sort((a, b) => (b.uses || 0) - (a.uses || 0))];
   const own = new Set(db.foods.map((f) => f.id));
   const dict = (typeof FOOD_DB === 'undefined' ? [] : FOOD_DB).filter((f) => !own.has(f.id) && hit(f)).map((f) => ({ ...f, _db: true }))
     .sort((a, b) => (a.name.startsWith(s) ? 0 : 1) - (b.name.startsWith(s) ? 0 : 1) || a.name.length - b.name.length);
@@ -510,6 +512,11 @@ function sheetHtml() {
   if (s.type === 'bucket') {
     return wrap(`<div class="row"><b style="flex:1;font-size:19px">ไม่รู้ kcal · เลือกขนาด</b>${closeBtn}</div><span class="small mut">ตั้งสูงไว้เล็กน้อย เพราะคนมักประเมินอาหารร้านต่ำกว่าจริง · บันทึกเป็นค่าประมาณ</span>
       ${[['out', 'มื้อนอกบ้าน', 'main'], ['snack', 'ขนม / ของว่าง', 'snack']].map(([k, l, ic]) => `<b style="font-size:14px">${l}</b><div class="grid3">${BUCKETS[k].map(([n, v], i) => `<button data-act="bucketLog" data-k="${k}" data-v="${v}" data-n="${n}" style="border:none;border-radius:18px;background:${['#FFF8D6', '#FFF3B0', '#FFE88A'][i]};padding:12px 4px;display:flex;flex-direction:column;align-items:center;gap:4px">${svgI(ic, 22 + i * 6)}<b>${n}</b><span class="small">${v}</span></button>`).join('')}</div>`).join('')}`);
+  }
+  if (s.type === 'homeSlot') {
+    const cur = S.homeSlot || slotNow();
+    return wrap(`<div class="row"><b style="flex:1;font-size:19px">บันทึกลงมื้อไหน?</b>${closeBtn}</div>
+      <div style="display:flex;flex-direction:column;gap:8px">${SLOTS.map((x) => `<button data-act="homeSlotPick" data-v="${x.id}" style="border:none;border-radius:18px;min-height:56px;padding:0 14px;display:flex;align-items:center;gap:12px;background:${x.id === cur ? '#FFF3B0;box-shadow:0 0 0 2px #FFD000' : 'var(--g)'}"><span class="ic" style="width:36px;height:36px;border-radius:18px;background:#fff">${slotSvg(x.id)}</span><b style="flex:1;text-align:left;font-size:16px">${x.name}</b><span class="small mut">${x.id === slotNow() ? 'ตอนนี้' : ''}</span></button>`).join('')}</div>`);
   }
   if (s.type === 'walk') {
     const P = db.exPrefs; const m = s.min ?? P.walkMin; const opts = [20, 30, 45, 60]; const custom = !opts.includes(m);
@@ -1049,11 +1056,11 @@ function vMonth() {
 }
 
 function todayBody() {
-  const k = todayKey(); const slot = slotNow(); const sname = SLOTS.find((s) => s.id === slot).name; const y = addDays(k, -1);
+  const k = todayKey(); const slot = S.homeSlot || slotNow(); const sname = SLOTS.find((s) => s.id === slot).name; const y = addDays(k, -1);
   const watchMiss = false;
   const wcard = watchMiss ? `<div class="card row" style="margin-top:10px;background:var(--lav);box-shadow:none;gap:10px;padding:10px 12px"><span class="ic" style="width:34px;height:34px;border-radius:17px;background:#fff">${svgI('watch', 20)}</span><button data-act="watchOpen" data-date="${y}" style="flex:1;border:none;background:none;text-align:left;padding:0"><b style="font-size:13px;display:block">เมื่อวานยังไม่ได้กรอก Watch</b><span class="small mut" style="font-size:11px">แตะเพื่อกรอก · เพิ่มโควต้าให้เมื่อวาน</span></button><button data-act="hideWatch" aria-label="ซ่อน" style="border:none;background:none;padding:6px">${xIcon}</button></div>` : '';
   const t = totals(k); const cnt = entriesOn(k).length;
-  return wcard + `<div class="row" style="margin:12px 20px 0;justify-content:space-between;align-items:baseline"><b style="font-size:17px;white-space:nowrap">มื้อ${sname}กินอะไร?</b><span class="small mut" style="white-space:nowrap">แตะ = บันทึก · ค้าง = ดูทั้งหมด</span></div>
+  return wcard + `<div class="row" style="margin:12px 20px 0;justify-content:space-between;align-items:baseline"><button data-act="homeSlot" aria-label="เปลี่ยนมื้อ" style="border:none;background:none;padding:0;display:flex;align-items:center;gap:4px;white-space:nowrap"><b style="font-size:17px">มื้อ<span style="background:var(--y);border-radius:10px;padding:0 6px;margin:0 2px">${sname} ▾</span>กินอะไร?</b></button><span class="small mut" style="white-space:nowrap">แตะ = บันทึก · ค้าง = ดูทั้งหมด</span></div>
     ${(() => { const hp = homePlates(slot); return `<div class="hscroll" style="margin:10px 0 0;padding:0 16px 4px;display:grid;grid-auto-flow:column;grid-auto-columns:${hp.length > 3 ? 'calc((100% - 52px) / 3.25)' : 'calc((100% - 52px) / 3)'};gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-left:16px">${hp.map(plateCard).join('')}</div>`; })()}
     <button data-act="openBuild" style="margin:12px 16px 0;width:calc(100% - 32px);height:54px;border:none;border-radius:27px;background:#fff;box-shadow:0 6px 18px rgba(31,31,31,.08);display:flex;align-items:center;gap:10px;padding:0 8px 0 18px;color:#8A8A8A;font-size:15px;text-align:left"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg><span style="flex:1">ไม่ใช่จานพวกนี้? ค้นหา / ประกอบจาน</span><span class="ic" style="width:40px;height:40px;border-radius:20px;background:var(--y);font-size:22px;font-weight:700;color:var(--ink)">+</span></button>
     <button data-act="openLog" data-date="${k}" style="margin:10px 18px 0;width:calc(100% - 36px);border:none;background:var(--g);border-radius:22px;min-height:48px;padding:0 16px;display:flex;align-items:center;gap:10px;text-align:left"><span style="flex:1;font-size:14px;font-weight:600">${cnt ? 'วันนี้กินไปแล้ว ' + cnt + ' ครั้ง · ' + fmt(t.k) + ' kcal' : 'ยังไม่ได้บันทึกวันนี้'}</span>${chev('r', 18)}</button>` + finishDayCard();
@@ -1180,10 +1187,13 @@ const A = {
   protKg: (el) => { db.profile.protPerKg = Number(el.dataset.v); save(); renderLayer(); render(); },
   watchPct: (el) => { db.profile.watchPct = Number(el.dataset.v); save(); renderLayer(); render(); },
   openLog: (el) => { S.logDate = el.dataset.date; go('log'); },
-  openBuild: () => { S.tray = []; S.bq = ''; S.bslot = slotNow(); S.bdate = null; S.bback = 'today'; go('build'); },
+  homeSlot: () => openSheet({ type: 'homeSlot' }),
+  homeSlotPick: (el) => { S.homeSlot = el.dataset.v === slotNow() ? null : el.dataset.v; closeSheet(); render(); },
+  openBuild: () => { S.tray = []; S.bq = ''; S.bslot = S.homeSlot || slotNow(); S.bdate = null; S.bback = 'today'; go('build'); },
   plateLog: (el) => { const id = el.dataset.id; const slot = slotNow(); let items;
     if (id.startsWith('meal:')) items = [{ foodId: id.slice(5), qty: 1 }]; else { const p = (db.plates || []).find((x) => x.id === id); if (!p) return; items = p.items; }
-    const out = logItems(items, slot, todayKey()); if (!out) return; savePlate(items, slot); save(); afterLog(out); },
+    const slotSel = S.homeSlot || slot; S.homeSlot = null;
+    const out = logItems(items, slotSel, todayKey()); if (!out) return; savePlate(items, slotSel); save(); afterLog(out); },
   trayAdd: (el) => { trayAdd(el.dataset.id); render(); const i = document.getElementById('bq'); },
   dbTray: (el) => { let f = foodById(el.dataset.id); if (!f) { const d = FOOD_DB.find((x) => x.id === el.dataset.id); f = { ...JSON.parse(JSON.stringify(d)), addon: false, userId: db.userId }; db.foods.push(f); save(); } trayAdd(f.id); S.bq = ''; render(); },
   trayQ: (el) => { const t = S.tray[Number(el.dataset.i)]; const f = resolveFood(t.foodId); const d = Number(el.dataset.d);
