@@ -188,7 +188,7 @@ function vToday() {
   const meals = mealFoods().map((m) => `<button data-act="logMeal" data-id="${m.id}" aria-label="บันทึก ${esc(m.full)}" style="border:none;border-radius:24px;background:#fff;box-shadow:0 6px 18px rgba(31,31,31,.07);padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:4px">${iconBox(m.icon, 30, 48, 18).replace(/background:[^;"]+/, 'background:#FFF3B0')}<span style="font-size:14px;font-weight:700">${esc(m.name)}</span><span class="small mut">${fmt(m.n.k)} kcal</span></button>`).join('');
   const cnt = entriesOn(k).length;
   const stk = streakInfo().cur;
-  return hero('<span style="font-size:15px;font-weight:600;display:block">' + greet + '</span><span style="font-size:32px">' + esc(db.profile.name || 'สวัสดี') + '</span>', thDate(k) + '<br>' + flameChip(stk), { pb: 120, right: `<span style="transform:rotate(-6deg);display:block">${mascot(mood, 108, chinLevel(), 'มาสคอต NoNeang')}</span>` }) +
+  return hero('<span style="font-size:15px;font-weight:600;display:block">' + greet + '</span><span style="font-size:32px">' + esc(db.profile.name || 'สวัสดี') + '</span>', thDate(k) + '<br><span style="display:inline-flex;gap:6px;flex-wrap:wrap">' + flameChip(stk) + waistPill() + '</span>', { pb: 120, right: `<span style="transform:rotate(-6deg);display:block">${mascot(mood, 108, chinLevel(), 'มาสคอต NoNeang')}</span>` }) +
     `<div class="card" style="margin-top:-104px;position:relative;padding:16px">
       <div class="row" style="gap:14px">
         <div style="position:relative;width:138px;height:138px;flex-shrink:0">${ring(t.k / goal, 138, 16, '#FFD000', '#FFF3B0', over ? (t.k - goal) / goal : 0)}
@@ -648,6 +648,11 @@ function dayDot(k, px = 38) {
   if (k > today || k < db.profile.startDate) return `<span class="ic" style="width:${px}px;height:${px}px;font-size:13px;color:#9A9A96">${parseKey(k).getDate()}</span>`;
   return `<span class="ic" style="width:${px}px;height:${px}px"><span style="width:10px;height:10px;border-radius:5px;background:#DDDDD8"></span></span>`;
 }
+function waistDue() { const w = bodySeries('waist'); const last = w.length ? w[w.length - 1].date : null; const t = todayKey();
+  if (!last) return { due: true, first: true }; const gap = daysBetween(last, t); const mon = parseKey(t).getDay() === 1;
+  return { due: gap >= 7 || (mon && last < mondayOf(t)), gap, first: false }; }
+const waistPill = () => { const d = waistDue(); if (!d.due) return '';
+  return `<button data-act="nav" data-to="weighin" aria-label="ถึงวันวัดรอบเอว" style="border:none;background:#fff;border-radius:20px;padding:4px 12px 4px 4px;display:inline-flex;align-items:center;gap:6px;box-shadow:0 0 0 2px #1F1F1F inset"><span class="ic" style="width:28px;height:28px;border-radius:14px;background:#FFF3B0">${svgI('tape', 18)}</span><b style="font-size:13px">${d.first ? 'วัดรอบเอว' : 'ถึงวันวัดเอว'}</b>${chev('r', 12)}</button>`; };
 const flameChip = (n) => `<button data-act="nav" data-to="stickers" aria-label="จดติดต่อกัน ${n} วัน · ดูแผ่นสติกเกอร์" style="border:none;background:#fff;border-radius:20px;padding:4px 10px 4px 4px;display:inline-flex;align-items:center;gap:4px;box-shadow:0 4px 12px rgba(160,120,0,.18);margin-top:6px"><span class="ic" style="width:26px;height:26px;border-radius:13px;background:#FFE6E0">${svgI('flame', 18)}</span><b style="font-size:15px">${n}</b><span style="font-size:12px;font-weight:600">วัน</span></button>`;
 
 function markDay(k, status) { db.dayStatus[k] = status; save(); S.toast = null; clearTimeout(toastTimer); S.sheet = { type: 'celebrate', date: k }; render(); }
@@ -1404,7 +1409,7 @@ else {
 }
 render();
 if ((typeof Cloud !== 'undefined')) Cloud.init();
-const APP_VER = 'v24';
+const APP_VER = 'v26';
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   const had = !!navigator.serviceWorker.controller; let reloaded = false;
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
