@@ -527,7 +527,7 @@ function sheetHtml() {
       ${s.edit ? `<div class="grid2" style="gap:8px"><div class="field"><label for="w-inc">ความชัน</label><input id="w-inc" inputmode="decimal" data-input="sheet.inc" value="${s.inc ?? P.incline ?? ''}" style="height:48px;border-radius:14px;border:2px solid #FFD000;text-align:center;font-size:17px;font-weight:700"></div><div class="field"><label for="w-sp">ความเร็ว</label><input id="w-sp" inputmode="decimal" data-input="sheet.sp" value="${s.sp ?? P.speed ?? ''}" style="height:48px;border-radius:14px;border:2px solid #FFD000;text-align:center;font-size:17px;font-weight:700"></div></div>`
         : `<div class="row" style="background:var(--g);border-radius:18px;padding:10px 14px"><span style="flex:1"><span class="small mut" style="display:block">ตั้งค่าลู่ · ใช้ค่าล่าสุด</span><b style="font-size:16px">${P.incline != null ? 'ชัน ' + P.incline + ' · ความเร็ว ' + P.speed : 'ยังไม่ได้ตั้ง'}</b></span><button class="chip" data-act="walkEdit" style="background:#fff">แก้</button></div>`}
       <span class="small mut" style="text-align:center">ไม่บังคับ · รีบก็กดบันทึกได้เลย</span>
-      <button class="btn" data-act="walkSave">บันทึก ${m || ''} นาที</button>`);
+      <button class="btn" id="walkSaveBtn" data-act="walkSave">บันทึก ${m || ''} นาที</button>`);
   }
   if (s.type === 'exOther') {
     const recent = [...new Set(['พิลาทีส', ...(db.workouts || []).filter((w) => w.type === 'other').map((w) => w.name)])].slice(0, 5);
@@ -1224,7 +1224,7 @@ const A = {
   exManage: () => openSheet({ type: 'exManage', date: S.exDate || todayKey() }),
   walkMin: (el) => { S.sheet.min = Number(el.dataset.v); S.sheet.minTxt = ''; renderLayer(); },
   walkEdit: () => { S.sheet.edit = true; renderLayer(); },
-  walkSave: () => { const s = S.sheet; const P = db.exPrefs; const m = num(s.minTxt) || s.min || P.walkMin; if (!m || m <= 0 || m > 300) return;
+  walkSave: () => { const s = S.sheet; const P = db.exPrefs; const m = s.min || num(s.minTxt) || P.walkMin; if (!m || m <= 0 || m > 300) return;
     if (s.edit) { const inc = num(s.inc ?? P.incline); const sp = num(s.sp ?? P.speed); P.incline = inc; P.speed = sp; }
     P.walkMin = m; exLog('walk', { min: m, incline: P.incline ?? null, speed: P.speed ?? null }); },
   otherPick: (el) => { S.sheet.name = el.dataset.v; renderLayer(); },
@@ -1380,7 +1380,11 @@ document.addEventListener('input', (ev) => {
   if (k === 'rwName') { S.rw.name = el.value; return; }
   if (k === 'bq') { S.bq = el.value; refreshBuild(); return; }
   if (k === 'sheet.name') { S.sheet.name = el.value; return; }
-  if (k === 'sheet.minTxt' || k === 'sheet.inc' || k === 'sheet.sp') { S.sheet[k.slice(6)] = el.value; return; }
+  if (k === 'sheet.minTxt') { S.sheet.minTxt = el.value; const v = num(el.value); if (v > 0) S.sheet.min = v;
+    document.querySelectorAll('[data-act=walkMin]').forEach((b) => (b.style.background = Number(b.dataset.v) === S.sheet.min ? 'var(--y)' : 'var(--g)'));
+    el.style.border = v > 0 && ![20, 30, 45, 60].includes(v) ? '2px solid #FFD000' : '1.5px dashed #CFCFCF';
+    const btn = document.getElementById('walkSaveBtn'); if (btn) btn.textContent = 'บันทึก ' + (S.sheet.min || '') + ' นาที'; return; }
+  if (k === 'sheet.inc' || k === 'sheet.sp') { S.sheet[k.slice(6)] = el.value; return; }
   if (k === 'clEmail' || k === 'clPw') { S.sheet[k] = k === 'clPw' ? el.value : el.value.trim(); return; }
   const [obj, field] = k.split('.');
   if (obj === 'ob') S.ob[field] = el.value; else if (obj === 'af') S.af[field] = el.value; else if (obj === 'wi') S.wi[field] = el.value; else if (obj === 'lb' || obj === 'pe') S.sheet[field] = el.value;
@@ -1409,7 +1413,7 @@ else {
 }
 render();
 if ((typeof Cloud !== 'undefined')) Cloud.init();
-const APP_VER = 'v26';
+const APP_VER = 'v27';
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   const had = !!navigator.serviceWorker.controller; let reloaded = false;
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
