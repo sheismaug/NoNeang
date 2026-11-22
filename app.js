@@ -45,7 +45,9 @@ function baseTDEE(p) { return bmr(p) * 1.2; }
 function targetBase(p) { const raw = baseTDEE(p) - PACE[p.pace].def; return { value: Math.max(p.sex === 'm' ? 1500 : 1200, Math.round(raw)), raw: Math.round(raw) }; }
 const activeOf = (k) => db.activity[k] || 0;
 const watchCredit = (k) => Math.round(activeOf(k) * db.profile.watchPct);
-const goalOf = (k) => db.profile.flatGoal || 1500;
+const BREAK_ADD = 350;
+const breakOn = (k) => { const b = db.dietBreak; if (!b) return null; const d = k || todayKey(); const end = b.end || addDays(b.start, (b.days || 7) - 1); return d >= b.start && d <= end ? { ...b, end, day: daysBetween(b.start, d) + 1 } : null; };
+const goalOf = (k) => (db.profile.flatGoal || 1500) + (breakOn(k) ? BREAK_ADD : 0);
 const okOf = (k) => goalOf(k) + 100;
 const protPerKg = () => db.profile.protPerKg ?? 1.6;
 const proteinTarget = () => Math.round(protPerKg() * calcW(db.profile));
@@ -177,7 +179,7 @@ const fillTile = (key, pct, col, tint) => `<span class="ic" style="width:46px;he
 function vToday() {
   const k = todayKey(); const t = totals(k); const goal = goalOf(k); const rem = goal - t.k; const over = rem < 0;
   const pT = proteinTarget(); const h = new Date().getHours();
-  let mood = 'happy'; if (over) mood = 'calm'; else if (h >= 22 || h < 4) mood = 'sleepy'; else if (h < 10 && !entriesOn(k).length) mood = 'morning'; else if (t.p >= pT) mood = 'proud';
+  let mood = 'happy'; if (breakOn()) mood = 'vacay'; else if (over) mood = 'calm'; else if (h >= 22 || h < 4) mood = 'sleepy'; else if (h < 10 && !entriesOn(k).length) mood = 'morning'; else if (t.p >= pT) mood = 'proud';
   const greet = h >= 22 || h < 4 ? 'ดึกแล้วนะ' : h < 11 ? 'อรุณสวัสดิ์' : h < 17 ? 'สวัสดีตอนบ่าย' : 'สวัสดีตอนเย็น';
   const sug = suggestCombos(k, S.store);
   const best = sug.combos[0];
@@ -188,10 +190,10 @@ function vToday() {
   const meals = mealFoods().map((m) => `<button data-act="logMeal" data-id="${m.id}" aria-label="บันทึก ${esc(m.full)}" style="border:none;border-radius:24px;background:#fff;box-shadow:0 6px 18px rgba(31,31,31,.07);padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:4px">${iconBox(m.icon, 30, 48, 18).replace(/background:[^;"]+/, 'background:#FFF3B0')}<span style="font-size:14px;font-weight:700">${esc(m.name)}</span><span class="small mut">${fmt(m.n.k)} kcal</span></button>`).join('');
   const cnt = entriesOn(k).length;
   const stk = streakInfo().cur;
-  return hero('<span style="font-size:15px;font-weight:600;display:block">' + greet + '</span><span style="font-size:32px">' + esc(db.profile.name || 'สวัสดี') + '</span>', thDate(k) + '<br><span style="display:inline-flex;gap:6px;flex-wrap:wrap">' + flameChip(stk) + waistPill() + '</span>', { pb: 120, right: `<span style="transform:rotate(-6deg);display:block">${mascot(mood, 108, chinLevel(), 'มาสคอต NoNeang')}</span>` }) +
+  return hero('<span style="font-size:15px;font-weight:600;display:block">' + greet + '</span><span style="font-size:32px">' + esc(db.profile.name || 'สวัสดี') + '</span>', thDate(k) + '<br><span style="display:inline-flex;gap:6px;flex-wrap:wrap">' + flameChip(stk) + (breakOn() ? `<button data-act="nav" data-to="me" style="border:none;background:#fff;border-radius:20px;padding:4px 12px 4px 4px;display:inline-flex;align-items:center;gap:6px"><span class="ic" style="width:28px;height:28px;border-radius:14px;background:#E3F3FD">${svgI('palm', 22)}</span><b style="font-size:13px">พักเครื่อง ${breakOn().day}/7</b></button>` : waistPill()) + '</span>', { pb: 120, right: `<span style="transform:rotate(-6deg);display:block">${mascot(mood, 108, chinLevel(), 'มาสคอต NoNeang')}</span>` }) +
     `<div class="card" style="margin-top:-104px;position:relative;padding:16px">
       <div class="row" style="gap:14px">
-        <div style="position:relative;width:138px;height:138px;flex-shrink:0">${ring(t.k / goal, 138, 16, '#FFD000', '#FFF3B0', over ? (t.k - goal) / goal : 0)}
+        <div style="position:relative;width:138px;height:138px;flex-shrink:0">${breakOn() ? ring(t.k / goal, 138, 16, '#4AA8E0', '#DCEEFB', over ? (t.k - goal) / goal : 0) : ring(t.k / goal, 138, 16, '#FFD000', '#FFF3B0', over ? (t.k - goal) / goal : 0)}
           <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">${over ? `<span class="small mut" style="font-weight:600">เกินมา</span><span style="font-size:32px;font-weight:700;color:#C2522E">${fmt(-rem)}</span><span class="small mut" style="font-weight:600">kcal</span>` : `<span style="font-size:34px;font-weight:700;line-height:1.05">${fmt(rem)}</span><span class="small mut" style="font-weight:600">kcal เหลือ</span><span style="font-size:11px;color:#8A8A8A;margin-top:2px">จาก ${fmt(goal)}</span>`}</div></div>
         <div style="flex:1;display:flex;flex-direction:column;gap:10px">
           <div class="row">${fillTile('chicken', Math.min(100, t.p / pT * 100), '#FFC4A3', '#FFF1EA')}<div><div style="font-size:13px;font-weight:700">Protein <span class="mut" style="font-weight:500">${Math.round(t.p)}/${pT}</span></div><div class="small mut">${t.p >= pT ? 'ครบแล้ว ✓' : 'ขาด ' + Math.round(pT - t.p) + ' g'}</div></div></div>
@@ -406,7 +408,7 @@ function vWeek() {
   const wt = bodySeries('weight'); const wtNow = wt.length ? wt[wt.length - 1].weight : p.startWeight;
   const spark = wt.length >= 2 ? (() => { const v = wt.slice(-8).map((b) => b.weight); const mn = Math.min(...v), mx = Math.max(...v) || 1; return `<svg width="120" height="34" viewBox="0 0 120 34" aria-hidden="true" style="margin-left:auto"><polyline points="${v.map((x, i) => (4 + i * 112 / Math.max(1, v.length - 1)).toFixed(1) + ',' + (4 + (mx - x) / Math.max(0.1, mx - mn) * 26).toFixed(1)).join(' ')}" fill="none" stroke="#BDBDBD" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`; })() : '';
   return hero(ovToggle() + '<span style="display:block">' + (S.weekOff ? 'สัปดาห์ ' + thDate(days[0]) : 'สัปดาห์นี้') + '</span>', thDate(days[0]) + ' – ' + thDate(days[6]), { pb: 62, right: `<span class="row" style="gap:6px"><button class="back" data-act="weekOff" data-d="-1" aria-label="สัปดาห์ก่อน" style="width:36px;height:36px">${chev('l', 16)}</button><span role="img" aria-label="ตามเป้า ${onT} จาก ${complete.length} วัน" style="background:#fff;border-radius:16px;padding:8px 10px;display:flex;gap:4px;box-shadow:0 6px 14px rgba(140,100,0,.15)">${dots}</span>${S.weekOff < 0 ? `<button class="back" data-act="weekOff" data-d="1" aria-label="สัปดาห์ถัดไป" style="width:36px;height:36px">${chev('r', 16)}</button>` : ''}</span>` }) +
-    weekKcalCard(days) + exWeekCard(days[0]) + periodCard() + chinCard + `<button class="card row" data-act="openRecap" data-mon="${mon}" style="border:none;width:calc(100% - 32px);margin-top:12px;gap:12px;text-align:left">${mascot('proud', 46)}<span style="flex:1"><b style="font-size:15px">สรุปสัปดาห์นี้</b><span class="small mut" style="display:block">จดครบ ${days.filter(LOGGED).length}/7 วัน · ดูการ์ด + บันทึกเป็นรูป</span></span>${chev('r', 16)}</button>` + chart +
+    (S.weekOff ? '' : sinceCard()) + weekKcalCard(days) + exWeekCard(days[0]) + periodCard() + chinCard + `<button class="card row" data-act="openRecap" data-mon="${mon}" style="border:none;width:calc(100% - 32px);margin-top:12px;gap:12px;text-align:left">${mascot('proud', 46)}<span style="flex:1"><b style="font-size:15px">สรุปสัปดาห์นี้</b><span class="small mut" style="display:block">จดครบ ${days.filter(LOGGED).length}/7 วัน · ดูการ์ด + บันทึกเป็นรูป</span></span>${chev('r', 16)}</button>` + chart +
     `<div class="card row" style="background:var(--g);box-shadow:none"><span><span class="small mut" style="display:block">น้ำหนัก (ดูประกอบ)</span><b style="font-size:16px">${r1(wtNow)} kg</b> ${wtNow < p.startWeight ? `<span class="small" style="font-weight:600;color:#2F6B45">▼ ${r1(p.startWeight - wtNow)}</span>` : ''}</span>${spark}</div>
     <div style="margin:12px 16px 0"><button class="btn" data-act="nav" data-to="weighin">วัดรอบเอว + ชั่งน้ำหนัก</button></div>` + nav();
 }
@@ -428,9 +430,10 @@ function vMe() {
   const stack = `<div role="img" aria-label="ใช้ต่อวัน ${fmt(baseTDEE(p))} กินได้ ${fmt(tb.value)}" style="align-self:stretch;display:flex;flex-direction:column;gap:6px;margin-top:4px"><div style="display:flex;height:16px;border-radius:8px;overflow:hidden"><span style="flex:${tb.value};background:#FFD000"></span><span style="flex:${Math.max(0, baseTDEE(p) - tb.value)};background:repeating-linear-gradient(135deg,#FFE6E0 0 5px,#fff 5px 10px);border:1.5px dashed #FF8A65;border-radius:0 8px 8px 0"></span></div><div class="row small mut" style="justify-content:space-between;font-size:11px"><span>กินได้ ${fmt(tb.value)}</span><span>ลด ${fmt(baseTDEE(p) - tb.value)}</span><span>ใช้ต่อวัน ${fmt(baseTDEE(p))}</span></div></div>`;
   return hero(esc(p.name || 'ฉัน'), (p.sex === 'm' ? 'ชาย' : 'หญิง') + ' · ' + ageOf(p.birth) + ' ปี · ' + p.height + ' cm · เริ่ม ' + p.startWeight + ' kg', { pb: 70, right: mascot('happy', 90, chinLevel()) }) +
     `<div class="card lift" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:18px"><span class="mut" style="font-size:14px">เป้ากินต่อวัน · เท่ากันทุกวัน</span><span><b style="font-size:46px">${fmt(goalOf())}</b> <span class="mut">kcal</span></span><span class="small mut">เกินนิดหน่อยไม่ถึง ${fmt(okOf())} ก็ยังนับว่าโอเค</span>
-      <div class="row" style="gap:8px">${[1400, 1500, 1600].map((v) => `<button class="chip ${goalOf() === v ? 'on' : ''}" data-act="flatGoal" data-v="${v}">${fmt(v)}</button>`).join('')}</div>
+      <div class="row" style="gap:8px">${[1400, 1500, 1600].map((v) => `<button class="chip ${(db.profile.flatGoal || 1500) === v ? 'on' : ''}" data-act="flatGoal" data-v="${v}">${fmt(v)}</button>`).join('')}</div>
       <span class="small mut" style="text-align:center;line-height:1.5">น้ำหนักไม่ขยับ 3 สัปดาห์ → ลอง 1,400 · เหนื่อย/แรงยกตก → 1,600</span>
       <button class="link" data-act="sheet" data-type="formula" style="font-weight:700;color:var(--ink)">ตัวเลขนี้มาจากไหน ›</button></div>
+    ${breakCard()}
     <div class="h2">เป้าออกกำลังต่อสัปดาห์</div>
     <div class="card" style="display:flex;flex-direction:column;gap:12px">
       <div class="row" style="gap:8px">${iconBox('dumbbell', 20, 34)}<b style="flex:1;font-size:14px">เวท</b>${[2, 3, 4].map((v) => `<button class="chip ${db.exGoal.weight === v ? 'on' : ''}" data-act="exGoal" data-k="weight" data-v="${v}">${v} ครั้ง</button>`).join('')}</div>
@@ -1114,6 +1117,27 @@ function logExCard(d) {
     ${on.length ? `<div class="row" style="gap:6px;flex-wrap:wrap">${on.map((w) => `<span class="badge" style="background:#FFE6D6;color:var(--ink);display:inline-flex;align-items:center;gap:4px">${svgI(exIcon(w.type), 14)}${esc(w.name || EX_NAME[w.type])}${w.min ? ' ' + w.min + "'" : ''}</span>`).join('')}</div>` : ''}
     <div class="row" style="gap:8px">${chip('exWeight', 'dumbbell', 'เวท')}${chip('exWalk', 'shoe', 'เดินลู่')}${chip('exOther', 'spa', 'อื่นๆ')}</div></div>`;
 }
+function sinceCard() {
+  const st = db.profile.startDate; const t = todayKey(); const days = daysBetween(st, t) + 1;
+  const logged = Object.keys(db.dayStatus).filter((d) => d >= st && LOGGED(d)).length;
+  const w = bodySeries('weight'); const ws = bodySeries('waist');
+  const dw = w.length > 1 ? w[w.length - 1].weight - w[0].weight : null; const dws = ws.length > 1 ? ws[ws.length - 1].waist - ws[0].waist : null;
+  const wo = (db.workouts || []).filter((x) => x.date >= st); const walkMin = wo.filter((x) => x.type === 'walk').reduce((a, x) => a + (x.min || 0), 0);
+  const tile = (ic, big, unit, small, bg) => `<div style="background:${bg};border-radius:20px;padding:12px;display:flex;flex-direction:column;gap:6px">${iconBox(ic, 20, 34)}<span><b style="font-size:24px;line-height:1">${big}</b> <span class="small mut">${unit}</span></span><span class="small mut" style="font-size:11px">${small}</span></div>`;
+  const sg = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + r1(Math.abs(v));
+  return `<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="row" style="gap:10px">${mascot('proud', 44)}<span style="flex:1"><b style="font-size:16px;display:block">มาไกลแล้วนะ</b><span class="small mut">ตั้งแต่ ${thDate(st)} · ${days} วัน</span></span></div>
+    <div class="grid2" style="gap:8px">${tile('flame', logged, 'วัน', 'จดครบ จาก ' + days + ' วัน', '#FFF8D6')}${tile('tape', dw != null ? sg(dw) : '–', 'kg', 'น้ำหนัก ' + (w.length ? w[0].weight + ' → ' + w[w.length - 1].weight : 'ยังไม่ชั่ง'), '#E7F4EA')}${tile('dumbbell', wo.length, 'ครั้ง', 'ออกกำลัง · เดิน ' + fmt(walkMin) + ' นาที', '#FFE6D6')}${tile('pants', dws != null ? sg(dws) : '–', 'cm', 'รอบเอว ' + (ws.length ? ws[0].waist + ' → ' + ws[ws.length - 1].waist : 'ยังไม่วัด'), '#E6F0FB')}</div></div>`;
+}
+function breakCard() {
+  const b = breakOn(); const base = db.profile.flatGoal || 1500;
+  if (b) return `<div class="card" style="display:flex;flex-direction:column;gap:10px;background:#EEF6FF"><div class="row" style="gap:10px">${iconBox('palm', 30, 48)}<span style="flex:1"><b style="font-size:16px;display:block">พักเครื่อง วันที่ ${b.day}/${b.days || 7}</b><span class="small mut">เป้า ${fmt(base + BREAK_ADD)} ถึง ${thDate(b.end)} แล้วกลับเป็น ${fmt(base)} เอง</span></span></div>
+    <div style="display:flex;gap:4px">${[...Array(b.days || 7)].map((_, i) => `<span style="flex:1;height:8px;border-radius:4px;background:${i < b.day ? '#4AA8E0' : '#DCEEFB'}"></span>`).join('')}</div>
+    <button class="link" data-act="breakStop" style="align-self:center">จบก่อนกำหนด</button></div>`;
+  const last = db.dietBreak && (db.dietBreak.end || db.dietBreak.start); const since = daysBetween(last || db.profile.startDate, todayKey()); const ready = since >= 27;
+  return `<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="row" style="gap:10px">${iconBox('umbrella', 30, 48)}<span style="flex:1"><b style="font-size:16px;display:block">สัปดาห์พักเครื่อง</b><span class="small mut">กินระดับคงน้ำหนัก ${fmt(base + BREAK_ADD)} kcal 7 วัน · ยังจดและออกกำลังตามปกติ</span></span></div>
+    <span class="small" style="line-height:1.5;color:#3E6A93">${ready ? 'คุมมาครบ 4 สัปดาห์แล้ว พักได้เลย ✓' : 'แนะนำทุก 4 สัปดาห์ · อีก ' + (27 - since) + ' วัน'}</span>
+    <button class="btn ${ready ? '' : 'w'}" data-act="breakStart">เริ่มพัก 7 วัน</button></div>`;
+}
 function exLog(type, extra = {}) {
   const w = { id: uid(), userId: db.userId, date: S.exDate || todayKey(), type, createdAt: new Date().toISOString(), schemaVersion: 1, ...extra };
   db.workouts.push(w); save(); S.exDate = null; S.sheet = null; render(); openSheet({ type: 'exDone', id: w.id });
@@ -1130,6 +1154,7 @@ function exDoneMsg(w, wk) {
 const app = document.getElementById('app'); const layer = document.getElementById('layer');
 function render() {
   let html = '';
+  document.body.classList.toggle('vacay', !!(db && db.profile && breakOn()));
   if (!db) html = vOnboard();
   else html = ({ today: vToday, suggest: vSuggest, pick: vPick, other: vOther, addfood: vAddFood, log: vLog, week: vWeek, weighin: vWeighIn, me: vMe, stickers: vStickers, reward: vReward, recap: vRecap, browse: vBrowse, build: vBuild }[S.view] || vToday)();
   app.innerHTML = html; renderLayer(); renderToast();
@@ -1232,6 +1257,8 @@ const A = {
   otherMin: (el) => { const v = Number(el.dataset.v); S.sheet.min = S.sheet.min === v ? null : v; renderLayer(); },
   otherSave: () => { const s = S.sheet; const n = (s.name || '').trim() || 'อื่นๆ'; exLog(n === 'พิลาทีส' ? 'pilates' : 'other', { name: n, min: s.min || null }); },
   exUndo: (el) => { db.workouts = db.workouts.filter((w) => w.id !== el.dataset.id); save(); closeSheet(); render(); toast('ลบแล้ว'); },
+  breakStart: () => { db.dietBreak = { start: todayKey(), days: 7 }; save(); render(); toast('เริ่มพักเครื่อง · เป้า ' + fmt(goalOf()) + ' kcal', null, 'yay'); },
+  breakStop: () => { if (db.dietBreak) db.dietBreak.end = addDays(todayKey(), -1); save(); render(); toast('กลับสู่เป้า ' + fmt(goalOf())); },
   flatGoal: (el) => { db.profile.flatGoal = Number(el.dataset.v); save(); render(); },
   exGoal: (el) => { db.exGoal[el.dataset.k] = Number(el.dataset.v); save(); render(); },
   plateMenu: (el) => openSheet({ type: 'plate', id: el.dataset.id }),
@@ -1415,7 +1442,7 @@ else {
 render();
 if (window.__fixSave) setTimeout(() => { try { save(); } catch (e) {} }, 300);
 if ((typeof Cloud !== 'undefined')) Cloud.init();
-const APP_VER = 'v28';
+const APP_VER = 'v29';
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   const had = !!navigator.serviceWorker.controller; let reloaded = false;
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
