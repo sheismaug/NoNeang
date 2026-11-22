@@ -33,7 +33,7 @@ const Store = {
   save(d) { d.updatedAt = new Date().toISOString(); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { toast('บันทึกลงเครื่องไม่ได้ (พื้นที่เต็มหรือโหมดส่วนตัว)'); } if ((typeof Cloud !== 'undefined')) Cloud.queue(); }
 };
 let db = Store.load();
-if (db) { db.rewards = db.rewards || []; db.seenRecap = db.seenRecap || {}; db.plates = db.plates || []; db.periodEnds = db.periodEnds || {}; db.workouts = db.workouts || []; db.exPrefs = db.exPrefs || { walkMin: 30, incline: 10, speed: 4.5 }; db.exGoal = db.exGoal || { weight: 3, walk: 180 }; if (db.profile && !db.profile.flatGoal) db.profile.flatGoal = 1500; const mk = db.foods.find((f) => f.id === 'milk'); if (mk && !mk.group) mk.group = 'นมโปรตีน'; }
+if (db) { db.rewards = db.rewards || []; db.seenRecap = db.seenRecap || {}; db.plates = db.plates || []; db.periodEnds = db.periodEnds || {}; db.workouts = db.workouts || []; if (!db.fixUnitsV1) { (db.foods || []).forEach((f) => { if (f.kind === 'sized' && f.per100 && f.def === 100 && f.userId && f.sizes && f.sizes[0] && f.sizes[0][1] === 'ครึ่ง') { f.kind = 'item'; f.unit = 'หน่วย'; f.n = { ...f.per100 }; delete f.per100; delete f.sizes; delete f.def; } }); db.fixUnitsV1 = true; window.__fixSave = true; } db.exPrefs = db.exPrefs || { walkMin: 30, incline: 10, speed: 4.5 }; db.exGoal = db.exGoal || { weight: 3, walk: 180 }; if (db.profile && !db.profile.flatGoal) db.profile.flatGoal = 1500; const mk = db.foods.find((f) => f.id === 'milk'); if (mk && !mk.group) mk.group = 'นมโปรตีน'; }
 const save = () => Store.save(db);
 
 /* ================= calculations ================= */
@@ -324,12 +324,12 @@ function vAddFood() {
       : `<div class="row" style="gap:6px;align-items:flex-start">${quick.slice(0, 4).map(icBtn).join('')}<button class="chip" data-act="afAllIcons" style="margin-left:auto;margin-top:6px">ทั้งหมด ${allN} ›</button></div>`) +
     (a.group ? card('·', 'อยู่ในกลุ่ม', `<span class="chip on" style="align-self:flex-start">${esc(a.group)}</span><span class="small mut">ค้นหา "${esc(a.group)}" แล้วเลือกยี่ห้อได้</span>`) : '') +
     card(4, 'นับเป็น', `<div class="row" style="gap:6px;flex-wrap:wrap">${units.map((u) => `<button class="chip ${a.unit === u ? 'on' : ''}" data-act="afSet" data-k="unit" data-v="${u}">${u}</button>`).join('')}<button class="chip ${custom ? 'on' : ''}" data-act="afCustomUnit">${custom ? esc(a.unit) + ' ✎' : '+ พิมพ์เอง'}</button></div>${a.unitTyping ? `<input data-input="af.unit" value="${custom ? esc(a.unit) : ''}" placeholder="เช่น ลูก, แท่ง, ไม้" aria-label="หน่วยเอง" style="height:46px;border-radius:14px;border:2px solid #FFD000;padding:0 12px;font-size:16px">` : ''}`) +
-    card(5, isG ? 'พลังงาน ต่อ 100 กรัม' : 'พลังงาน ต่อ 1 ' + esc(a.unit), `<div class="grid3" style="gap:8px">${num('k', 'kcal', true)}${num('p', 'Protein g')}${num('f', 'Fiber g')}</div>
+    card(5, isG ? 'กินกี่กรัม · ได้พลังงานเท่าไหร่' : 'พลังงาน ต่อ 1 ' + esc(a.unit), `${isG ? `<div class="row" style="gap:8px"><span style="font-size:14px;font-weight:700">ปริมาณ</span><input inputmode="decimal" data-input="af.g" value="${a.g ?? 100}" aria-label="กี่กรัม" style="width:90px;height:46px;border-radius:14px;border:2px solid #FFD000;text-align:center;font-size:18px;font-weight:700"><span style="font-size:14px;font-weight:700">กรัม</span><span class="small mut">ค่าด้านล่างคือของปริมาณนี้</span></div>` : ''}<div class="grid3" style="gap:8px">${num('k', 'kcal', true)}${num('p', 'Protein g')}${num('f', 'Fiber g')}</div>
       <div class="seg"><button class="${a.src === 'label' ? 'on' : ''}" data-act="afSet" data-k="src" data-v="label">จากฉลาก</button><button class="${a.src === 'est' ? 'on' : ''}" data-act="afSet" data-k="src" data-v="est">ใช้ค่าประมาณ</button></div>
       <span class="small mut">ไม่รู้ตัวเลข? ถามในแชทก่อน แล้วกรอกครั้งเดียว</span>`) +
     card(6, 'ใช้เป็นของเติม', `<span class="small mut">ขึ้นในชุดแนะนำและหน้าเลือกเติมเอง</span>${a.addon ? `<div class="row" style="gap:6px;flex-wrap:wrap"><span class="small" style="font-weight:700;color:var(--mut)">ซื้อได้ที่</span>${['7-11', 'Lotus', 'ยิม'].map((x) => `<button class="chip ${a.stores.includes(x) ? 'on' : ''}" data-act="afStore" data-v="${x}">${a.stores.includes(x) ? '✓ ' : ''}${x}</button>`).join('')}</div>` : ''}`,
       `<button role="switch" aria-checked="${a.addon}" aria-label="ใช้เป็นของเติม" data-act="afToggle" style="margin-left:auto;width:52px;height:32px;border-radius:16px;border:none;background:${a.addon ? '#FFD000' : '#DDD'};position:relative"><span style="position:absolute;${a.addon ? 'right' : 'left'}:3px;top:3px;width:26px;height:26px;border-radius:13px;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.2)"></span></button>`) +
-    `<div id="af-err" class="small" style="color:#B3261E;margin:10px 20px 0;min-height:16px"></div><div style="margin:6px 16px 0;display:flex;flex-direction:column;gap:6px"><button class="btn" data-act="afSave" data-eat="1">${a.id ? 'บันทึกการแก้ไข' : (a.back === 'build' ? 'บันทึก + ใส่ในจาน' : 'บันทึกเมนู + กินเลย ' + (isG ? '100 กรัม' : '1 ' + esc(a.unit)))}</button>${a.id ? '' : '<button class="link" data-act="afSave" data-eat="0">บันทึกเมนูอย่างเดียว ยังไม่กิน</button>'}</div></div>`;
+    `<div id="af-err" class="small" style="color:#B3261E;margin:10px 20px 0;min-height:16px"></div><div style="margin:6px 16px 0;display:flex;flex-direction:column;gap:6px"><button class="btn" data-act="afSave" data-eat="1">${a.id ? 'บันทึกการแก้ไข' : (a.back === 'build' ? 'บันทึก + ใส่ในจาน' : 'บันทึกเมนู + กินเลย ' + (isG ? (a.g || 100) + ' กรัม' : '1 ' + esc(a.unit)))}</button>${a.id ? '' : '<button class="link" data-act="afSave" data-eat="0">บันทึกเมนูอย่างเดียว ยังไม่กิน</button>'}</div></div>`;
 }
 
 function vLog() {
@@ -1183,12 +1183,13 @@ const A = {
   afSave: (el) => { const a = S.af; const k = num(a.k); const err = document.getElementById('af-err');
     if (!a.name.trim()) { err.textContent = 'ใส่ชื่อเมนูก่อน'; return; } if (k == null || k <= 0) { err.textContent = 'ใส่ kcal ก่อน (ถ้าไม่รู้ ประมาณเอาได้)'; return; }
     const nn = { k, p: num(a.p) || 0, f: num(a.f) || 0 }; const unit = (a.unit || '').trim() || 'ชิ้น';
-    const data = unit === 'กรัม' ? { name: a.name.trim(), cat: a.cat, icon: a.icon || CAT_ICON[a.cat], kind: 'sized', unit: 'g', per100: nn, def: 100, sizes: [[50, 'ครึ่ง', 'S'], [100, '100 g', 'M'], [150, '150 g', 'L']], addon: a.addon, stores: a.stores, src: a.src }
+    const gg = Math.max(1, num(a.g) || 100); const sc = 100 / gg; const per = { k: nn.k * sc, p: nn.p * sc, f: nn.f * sc };
+    const data = unit === 'กรัม' ? { name: a.name.trim(), cat: a.cat, icon: a.icon || CAT_ICON[a.cat], kind: 'sized', unit: 'g', per100: per, def: gg, sizes: [[Math.round(gg / 2), 'ครึ่ง', 'S'], [gg, gg + ' g', 'M'], [Math.round(gg * 1.5), Math.round(gg * 1.5) + ' g', 'L']], addon: a.addon, stores: a.stores, src: a.src }
       : { name: a.name.trim(), cat: a.cat, icon: a.icon || CAT_ICON[a.cat], kind: 'item', unit, n: nn, addon: a.addon, stores: a.stores, src: a.src };
     if (a.group) data.group = a.group;
     let f; if (a.id) { f = foodById(a.id); Object.assign(f, data); } else { f = { id: uid(), aliases: [], userId: db.userId, createdAt: new Date().toISOString(), ...data }; db.foods.push(f); }
     save(); if (a.back === 'build' && !a.id) { trayAdd(f.id); S.bq = ''; toast('ใส่ ' + f.name + ' ในจานแล้ว'); return go('build'); }
-    if (el.dataset.eat === '1' && !a.id) { const e = f.kind === 'sized' ? addEntry(f, { grams: 100 }) : addEntry(f); if (e) return afterLog([e]); }
+    if (el.dataset.eat === '1' && !a.id) { const e = f.kind === 'sized' ? addEntry(f, { grams: f.def }) : addEntry(f); if (e) return afterLog([e]); }
     toast(a.id ? 'แก้ ' + f.name + ' แล้ว' : 'เพิ่ม ' + f.name + ' แล้ว'); go(a.back === 'me' ? 'me' : 'other', { q: '' }); },
   bucketLog: (el) => { const k = el.dataset.k; const v = Number(el.dataset.v); const f = { id: 'bucket-' + k, name: (k === 'out' ? 'มื้อนอกบ้าน ' : 'ขนม ') + el.dataset.n, icon: k === 'out' ? 'main' : 'snack', cat: k === 'out' ? 'main' : 'snack', kind: 'item', unit: 'มื้อ', n: { k: v, p: k === 'out' ? 20 : 4, f: k === 'out' ? 3 : 1 }, src: 'est' }; closeSheet(); const e = addEntry(f); if (e) afterLog([e]); },
   labelSave: () => { const s = S.sheet; const f = foodById(s.id || s.foodId); const k = num(s.k); if (k == null || k <= 0) { document.getElementById('lb-err').textContent = 'ใส่ kcal จากฉลากก่อน'; return; }
@@ -1412,8 +1413,9 @@ else {
   }
 }
 render();
+if (window.__fixSave) setTimeout(() => { try { save(); } catch (e) {} }, 300);
 if ((typeof Cloud !== 'undefined')) Cloud.init();
-const APP_VER = 'v27';
+const APP_VER = 'v28';
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   const had = !!navigator.serviceWorker.controller; let reloaded = false;
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
