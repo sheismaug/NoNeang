@@ -155,7 +155,7 @@ function afterLog(entries) {
   go(ret === 'log' ? 'log' : 'today');
   toast(label + (left >= 0 ? ' · เหลือ ' + fmt(left) : ' · เกินมา ' + fmt(-left)), entries.map((e) => e.id), left < 0 ? 'calm' : 'yay');
 }
-function undo(ids) { db.entries = db.entries.filter((e) => !ids.includes(e.id)); save(); S.toast = null; renderToast(); render(); }
+function undo(ids) { if (typeof ids === 'function') ids(); else db.entries = db.entries.filter((e) => !ids.includes(e.id)); save(); S.toast = null; renderToast(); render(); }
 
 /* ================= components ================= */
 function hero(title, sub, opts = {}) {
@@ -408,7 +408,7 @@ function vWeek() {
   const wt = bodySeries('weight'); const wtNow = wt.length ? wt[wt.length - 1].weight : p.startWeight;
   const spark = wt.length >= 2 ? (() => { const v = wt.slice(-8).map((b) => b.weight); const mn = Math.min(...v), mx = Math.max(...v) || 1; return `<svg width="120" height="34" viewBox="0 0 120 34" aria-hidden="true" style="margin-left:auto"><polyline points="${v.map((x, i) => (4 + i * 112 / Math.max(1, v.length - 1)).toFixed(1) + ',' + (4 + (mx - x) / Math.max(0.1, mx - mn) * 26).toFixed(1)).join(' ')}" fill="none" stroke="#BDBDBD" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`; })() : '';
   return hero(ovToggle() + '<span style="display:block">' + (S.weekOff ? 'สัปดาห์ ' + thDate(days[0]) : 'สัปดาห์นี้') + '</span>', thDate(days[0]) + ' – ' + thDate(days[6]), { pb: 62, right: `<span class="row" style="gap:6px"><button class="back" data-act="weekOff" data-d="-1" aria-label="สัปดาห์ก่อน" style="width:36px;height:36px">${chev('l', 16)}</button><span role="img" aria-label="ตามเป้า ${onT} จาก ${complete.length} วัน" style="background:#fff;border-radius:16px;padding:8px 10px;display:flex;gap:4px;box-shadow:0 6px 14px rgba(140,100,0,.15)">${dots}</span>${S.weekOff < 0 ? `<button class="back" data-act="weekOff" data-d="1" aria-label="สัปดาห์ถัดไป" style="width:36px;height:36px">${chev('r', 16)}</button>` : ''}</span>` }) +
-    (S.weekOff ? '' : goalCard()) + reviewCard(days[0]) + weekKcalCard(days) + exWeekCard(days[0]) + periodCard() + chinCard + `<button class="card row" data-act="openRecap" data-mon="${mon}" style="border:none;width:calc(100% - 32px);margin-top:12px;gap:12px;text-align:left">${mascot('proud', 46)}<span style="flex:1"><b style="font-size:15px">สรุปสัปดาห์นี้</b><span class="small mut" style="display:block">จดครบ ${days.filter(LOGGED).length}/7 วัน · ดูการ์ด + บันทึกเป็นรูป</span></span>${chev('r', 16)}</button>` + chart +
+    (S.weekOff ? '' : goalCard()) + (reviewCard(days[0]) || (S.weekOff ? '' : reviewCard(addDays(days[0], -7)))) + weekKcalCard(days) + exWeekCard(days[0]) + periodCard() + chinCard + `<button class="card row" data-act="openRecap" data-mon="${mon}" style="border:none;width:calc(100% - 32px);margin-top:12px;gap:12px;text-align:left">${mascot('proud', 46)}<span style="flex:1"><b style="font-size:15px">สรุปสัปดาห์นี้</b><span class="small mut" style="display:block">จดครบ ${days.filter(LOGGED).length}/7 วัน · ดูการ์ด + บันทึกเป็นรูป</span></span>${chev('r', 16)}</button>` + chart +
     `<div class="card row" style="background:var(--g);box-shadow:none"><span><span class="small mut" style="display:block">น้ำหนัก (ดูประกอบ)</span><b style="font-size:16px">${r1(wtNow)} kg</b> ${wtNow < p.startWeight ? `<span class="small" style="font-weight:600;color:#2F6B45">▼ ${r1(p.startWeight - wtNow)}</span>` : ''}</span>${spark}</div>
     <div style="margin:12px 16px 0"><button class="btn" data-act="nav" data-to="weighin">วัดรอบเอว + ชั่งน้ำหนัก</button></div>` + nav();
 }
@@ -587,9 +587,15 @@ function sheetHtml() {
         <button data-act="groupNew" data-g="${esc(s.g)}" style="border:none;background:#fff;width:100%;min-height:50px;font-size:14px;font-weight:700;color:#6B5A00">+ เพิ่มยี่ห้อใหม่ (กรอกจากฉลาก)</button></div>`);
   }
   if (s.type === 'periodDay') {
-    const has = periodDays().has(s.date); const isStart = db.periods.includes(s.date);
-    return wrap(`<div class="row"><span class="ic" style="width:44px;height:44px;border-radius:22px;background:#FBE3EA">${DROP(22, '#FF8FA8')}</span><span style="flex:1"><b style="font-size:18px;display:block">${thDate(s.date)}</b><span class="small mut">${has ? 'บันทึกว่ามีประจำเดือน' : 'ยังไม่ได้บันทึก'}</span></span>${closeBtn}</div>
-      ${has ? `${isStart ? '' : `<button class="btn w" data-act="periodEndAt" data-d="${s.date}">ให้วันนี้เป็นวันสุดท้าย</button>`}<button class="btn danger" data-act="periodRemove" data-d="${s.date}">ลบรอบนี้ออก</button>` : `<button class="btn" data-act="periodStartAt" data-d="${s.date}" style="background:#FF8FA8;color:#fff">เริ่มมีประจำเดือนวันนี้</button>`}`);
+    const d = s.date; const p = periodSpans().find((x) => x.start <= d && x.end >= d); const len = p ? daysBetween(p.start, p.end) + 1 : 0;
+    const big = (act, ic, t, sub, bg, sh) => `<button data-act="${act}" data-d="${d}" style="border:none;text-align:left;border-radius:20px;padding:12px 14px;background:${bg};box-shadow:0 4px 0 ${sh};display:flex;align-items:center;gap:12px"><span class="ic" style="width:40px;height:40px;border-radius:20px;background:#fff;flex-shrink:0">${ic}</span><span style="flex:1"><b style="font-size:15px;display:block">${t}</b><span class="small mut">${sub}</span></span></button>`;
+    const X = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C2522E" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    const STOP = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h10M15 6v12"/></svg>';
+    return wrap(`<div class="row"><span class="ic" style="width:44px;height:44px;border-radius:22px;background:#FBE3EA">${DROP(22, '#FF8FA8')}</span><span style="flex:1"><b style="font-size:18px;display:block">${thDate(d)}</b><span class="small mut">${p ? 'มีประจำเดือน · รอบนี้ ' + thMonth(p.start) + ' – ' + thMonth(p.end) + ' (' + len + ' วัน)' : 'ยังไม่ได้บันทึกว่ามี'}</span></span>${closeBtn}</div>
+      ${p ? big('periodDayOff', X, 'วันนี้ไม่มี', 'เอาออกแค่วันนี้วันเดียว', '#FFF0EA', '#F5CBBE') + (d < p.end ? big('periodEndAt', STOP, 'หมดวันนี้', 'วันหลังจากนี้ไม่นับแล้ว', '#F6F4EE', '#E4DFD2') : '')
+        + `<button data-act="periodRemove" data-d="${d}" style="border:none;background:none;padding:6px;font-size:12px;color:#B0532E;text-decoration:underline;align-self:center">ลบทั้งรอบ (${len} วัน)</button>`
+      : big('periodDayOn', DROP(20, '#FF8FA8'), 'วันนี้มี', 'ถ้าติดกับรอบเดิม จะต่อรอบให้เอง', '#FDE7EE', '#F3C2D1')}
+      <span class="small mut" style="text-align:center;font-size:11px">พลาดกด "เลิกทำ" ได้ทันที</span>`);
   }
   if (s.type === 'rebase') {
     return wrap(`<div class="row">${mascot('proud', 56)}<span style="flex:1"><b style="font-size:19px;display:block">น้ำหนักเปลี่ยนไป ${r1(Math.abs(s.w - s.old))} kg</b><span class="small mut">คำนวณเป้าใหม่จากน้ำหนักล่าสุด</span></span>${closeBtn}</div>
@@ -1012,6 +1018,9 @@ function vBuild() {
 function refreshBuild() { const r = document.getElementById('bres'); if (r) r.innerHTML = builderResults(); }
 
 /* ---- period ---- */
+function periodSpans() { const now = periodNow(); const ends = db.periodEnds || {}; return [...db.periods].sort().map((s) => ({ start: s, end: ends[s] || (now && now.start === s ? todayKey() : addDays(s, 4)) })); }
+function periodEdit(msg, fn) { const snap = JSON.stringify({ p: db.periods, e: db.periodEnds }); fn(); save(); if (S.sheet) closeSheet(); render();
+  toast(msg, () => { const o = JSON.parse(snap); db.periods = o.p; db.periodEnds = o.e; }, 'period'); }
 function periodDays() { const set = new Set(); const ends = db.periodEnds || {}; [...db.periods].sort().forEach((s) => { const now = periodNow(); const e = ends[s] || (now && now.start === s ? todayKey() : addDays(s, 4)); let d = s; for (let i = 0; i < 10 && d <= e; i++) { set.add(d); d = addDays(d, 1); } }); return set; }
 function periodNow() { const t = todayKey(); const last = [...db.periods].sort().filter((s) => s <= t).pop(); if (!last) return null; if ((db.periodEnds || {})[last]) return null; const n = daysBetween(last, t); return n >= 0 && n <= 6 ? { start: last, day: n + 1 } : null; }
 function periodNext() { const ps = [...db.periods].sort(); if (!ps.length) return null; const gaps = ps.slice(1).map((d, i) => daysBetween(ps[i], d)).filter((g) => g >= 21 && g <= 40); const cyc = gaps.length ? Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length) : 28; return addDays(ps[ps.length - 1], cyc); }
@@ -1183,7 +1192,7 @@ function weekReview(mon) {
   const ak = avg('k'), ap = avg('p'), af = avg('f'); const inT = full.filter((d) => totals(d).k <= okOf(d)).length;
   const wd = full.filter((d) => parseKey(d).getDay() % 6 !== 0), we = full.filter((d) => parseKey(d).getDay() % 6 === 0);
   const av = (a) => (a.length ? a.reduce((x, d) => x + totals(d).k, 0) / a.length : null);
-  const wk = exWeek(mon); const exPct = Math.min(1, wk.weight / db.exGoal.weight) * 0.5 + Math.min(1, wk.walk / db.exGoal.walk) * 0.5;
+  const wk = exWeek(mon); const exMin = wk.list.reduce((a, w) => a + (w.min || 0), 0); const goalMin = db.exGoal.weight * 60 + db.exGoal.walk; const exPct = Math.max(exMin / goalMin, wk.moved / 4);
   const T = trendOf('weight'); const pT = proteinTarget();
   const kOk = Math.round(ak) <= okOf(k) ? 2 : Math.round(ak) <= okOf(k) + 150 ? 1 : 0; const tOk = inT / full.length >= 0.65 ? 2 : inT / full.length >= 0.45 ? 1 : 0; const eOk = exPct >= 0.9 ? 2 : exPct >= 0.5 ? 1 : 0;
   const score = kOk + tOk + eOk; const level = score >= 5 ? ['ดีมาก', 'yay', '#E4F4E8', '#2F7A4A'] : score >= 4 ? ['ดี', 'happy', '#FFF6CF', '#8A6D00'] : score >= 2 ? ['พอใช้', 'calm', '#FFF0DE', '#A0611E'] : ['เริ่มหลุด', 'calm', '#FFE9DE', '#B0532E'];
@@ -1192,14 +1201,14 @@ function weekReview(mon) {
     [tOk, 'flame', 'อยู่ในเป้า ' + inT + '/' + full.length + ' วัน', tOk === 2 ? 'สม่ำเสมอ' : tOk === 1 ? 'ครึ่งต่อครึ่ง' : 'หลุดบ่อย'],
     [ap >= pT ? 2 : ap >= pT * 0.85 ? 1 : 0, 'chicken', 'โปรตีนเฉลี่ย ' + Math.round(ap) + ' g', ap >= pT ? 'ถึงเป้า' : 'ขาดอีก ' + Math.round(pT - ap) + ' g'],
     [af >= FIBER ? 2 : af >= FIBER * 0.75 ? 1 : 0, 'veg', 'ไฟเบอร์เฉลี่ย ' + Math.round(af) + ' g', af >= FIBER ? 'ถึงเป้า' : 'ขาดอีก ' + Math.round(FIBER - af) + ' g'],
-    [eOk, 'dumbbell', 'เวท ' + wk.weight + '/' + db.exGoal.weight + ' · เดิน ' + wk.walk + '/' + db.exGoal.walk + "'", eOk === 2 ? 'ครบ' : [wk.weight < db.exGoal.weight ? 'เวทขาด ' + (db.exGoal.weight - wk.weight) : '', wk.walk < db.exGoal.walk ? 'เดินขาด ' + (db.exGoal.walk - wk.walk) + "'" : ''].filter(Boolean).join(' · ')],
+    [eOk, 'dumbbell', 'เวท ' + wk.weight + '/' + db.exGoal.weight + ' · เดิน ' + wk.walk + '/' + db.exGoal.walk + "'", eOk === 2 ? 'ขยับ ' + wk.moved + ' วัน · ' + fmt(exMin) + "'" : 'ขยับ ' + wk.moved + ' วัน'],
   ];
   if (T) { const pw = -T.perWeek; rows.push([pw >= 0.25 && pw <= 1 ? 2 : pw > 1 ? 1 : 1, 'scale', 'น้ำหนัก ' + (T.perWeek < 0 ? '−' : '+') + r1(Math.abs(T.perWeek)) + ' kg/สัปดาห์', pw > 1 ? 'ลดเร็วไปนิด' : pw >= 0.25 ? 'กำลังดี' : 'ทรงตัว']); }
   const acts = [];
   if (pw_fast(T)) acts.push(['main', 'กินเพิ่มวันละ ~150 kcal', 'น้ำหนักลดเร็วเกิน 1 kg/สัปดาห์ ช้าลงนิดจะยั่งยืนกว่า']);
   if (kOk === 0) acts.push(['spa', 'ลองสัปดาห์พักเครื่อง', 'สัปดาห์นี้หิวจนเกินเป้าบ่อย พักสัก 7 วันแล้วค่อยกลับมา']);
   if (tOk === 0) acts.push(['flame', 'วางมื้อหลักไว้ล่วงหน้าทุกเช้า', 'สัปดาห์นี้หลุดเป้าหลายวัน รู้ก่อนว่าจะกินอะไรช่วยได้มาก']);
-  if (wk.weight < db.exGoal.weight) acts.push(['dumbbell', 'ล็อกวันเวทไว้ ' + db.exGoal.weight + ' วัน', 'สัปดาห์นี้เวทได้ ' + wk.weight + ' ครั้ง ใส่ปฏิทินไว้เลยจะไม่หลุด']);
+  if (eOk < 2) acts.push(['dumbbell', 'ล็อกวันออกกำลังไว้ 4 วัน', 'สัปดาห์นี้ขยับ ' + wk.moved + ' วัน ใส่ปฏิทินไว้ล่วงหน้าจะไม่หลุด']);
   if (af < FIBER * 0.8) acts.push(['veg', 'เพิ่มผักหรือผลไม้วันละ 1 อย่าง', 'ไฟเบอร์ยังขาดราว ' + Math.round(FIBER - af) + ' g/วัน ช่วยให้อิ่มนานขึ้นด้วย']);
   if (ap < pT * 0.85) acts.push(['chicken', 'เพิ่มไข่หรือนมโปรตีนวันละ 1 อย่าง', 'โปรตีนยังขาดราว ' + Math.round(pT - ap) + ' g/วัน']);
   if (we.length && wd.length && av(we) - av(wd) > 150) acts.push(['main', 'คิดมื้อเสาร์อาทิตย์ไว้ก่อน', 'วันหยุดกินมากกว่าวันธรรมดา ~' + fmt(Math.round((av(we) - av(wd)) / 10) * 10) + ' kcal']);
@@ -1216,10 +1225,10 @@ function reviewCard(mon) {
   const st = r.stat.filter((x) => x[2] != null).map(([ic, l, v]) => { const [b, c, t] = C[v]; return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px"><span style="position:relative;width:52px;height:52px;border-radius:26px;background:${b};box-shadow:inset 0 0 0 3px ${c};display:flex;align-items:center;justify-content:center">${svgI(ic, 28)}</span><span style="font-size:12px;font-weight:700">${l}</span><span style="font-size:11px;color:var(--mut);margin-top:-4px">${t}</span></div>`; }).join('');
   const [aic, at, aw] = r.act;
   return `<div class="card" style="display:flex;flex-direction:column;gap:14px;background:#FFFDF6">
-    <div class="row" style="gap:12px">${mascot(mood, 50)}<b style="flex:1;font-size:21px;line-height:1.3">${isNow ? 'สัปดาห์นี้' : 'สัปดาห์นั้น'} <span style="background:linear-gradient(transparent 58%, ${bg === '#FFF6CF' ? '#FFE066' : bg} 58%);padding:0 3px;color:${ink}">${lv}</span></b></div>
+    <div class="row" style="gap:12px">${mascot(mood, 50)}<b style="flex:1;font-size:21px;line-height:1.3">${isNow ? 'สัปดาห์นี้' : mon === addDays(mondayOf(todayKey()), -7) ? 'สัปดาห์ที่แล้ว' : 'สัปดาห์นั้น'} <span style="background:linear-gradient(transparent 58%, ${bg === '#FFF6CF' ? '#FFE066' : bg} 58%);padding:0 3px;color:${ink}">${lv}</span></b></div>
     <div class="row" style="gap:6px">${st}</div>
     <div style="background:#FFF6CF;border-radius:20px;padding:14px;box-shadow:0 4px 0 #F2DE85;display:flex;flex-direction:column;gap:8px">
-      <span style="font-size:12px;font-weight:700;color:#8A6D00">${isNow ? 'สัปดาห์หน้า' : 'สัปดาห์ถัดไป'} ทำแค่อย่างเดียว</span>
+      <span style="font-size:12px;font-weight:700;color:#8A6D00">${isNow || mon === addDays(mondayOf(todayKey()), -7) ? (isNow ? 'สัปดาห์หน้า' : 'สัปดาห์นี้') : 'สัปดาห์ถัดไป'} ทำแค่อย่างเดียว</span>
       <div class="row" style="gap:12px"><span class="ic" style="width:46px;height:46px;border-radius:23px;background:#fff;flex-shrink:0">${svgI(aic, 28)}</span><span style="flex:1"><b style="font-size:17px;display:block;line-height:1.3">${at}</b><span class="small mut" style="line-height:1.45">${aw}</span></span></div></div>
     <button data-act="reviewMore" style="border:none;background:none;padding:0;font-size:12px;color:var(--mut);text-decoration:underline;align-self:center">${S.reviewMore ? 'ซ่อนรายละเอียด' : 'ดูรายละเอียด'}</button>
     ${S.reviewMore ? `<div style="display:flex;flex-direction:column;background:#fff;border-radius:18px;padding:4px 12px">${r.rows.map(([v, ic, a, b], i) => `<div class="row" style="gap:10px;padding:8px 0;${i ? 'border-top:1px solid #F4F0E6' : ''}">${svgI(ic, 20)}<span style="flex:1;font-size:13px;font-weight:600">${a}</span><span style="font-size:12px;color:var(--mut);white-space:nowrap">${b}</span><span style="width:9px;height:9px;border-radius:5px;background:${C[v][1]}"></span></div>`).join('')}</div>` : ''}</div>`;
@@ -1379,7 +1388,7 @@ function renderToast() {
   const old = layer.querySelector('.toast'); if (old) old.remove();
   if (!S.toast) return;
   const d = document.createElement('div'); d.className = 'toast'; d.setAttribute('role', 'status');
-  d.innerHTML = `<span class="ic" style="width:52px;height:52px;border-radius:18px;background:var(--y)">${mascot(S.toast.mood, 48)}</span><span style="flex:1;min-width:0"><b style="display:block;font-size:15px">${S.toast.mood === 'calm' ? 'บันทึกแล้ว ไม่เป็นไรน้า' : S.toast.mood === 'huh' ? 'อุ๊ย' : 'เย้ บันทึกแล้ว!'}</b><span style="font-size:12px;color:#D6D6D6">${esc(S.toast.msg)}</span></span>${S.toast.undoId ? '<button data-act="undo" style="height:36px;padding:0 12px;border-radius:18px;border:none;background:#333;color:#FFE680;font-size:13px;font-weight:700">เลิกทำ</button>' : ''}`;
+  d.innerHTML = `<span class="ic" style="width:52px;height:52px;border-radius:18px;background:var(--y)">${mascot(S.toast.mood === 'period' ? 'calm' : S.toast.mood, 48)}</span><span style="flex:1;min-width:0"><b style="display:block;font-size:15px">${S.toast.mood === 'calm' ? 'บันทึกแล้ว ไม่เป็นไรน้า' : S.toast.mood === 'huh' ? 'อุ๊ย' : S.toast.mood === 'period' ? esc(S.toast.msg) : 'เย้ บันทึกแล้ว!'}</b>${S.toast.mood === 'period' ? '<span style="font-size:12px;color:#D6D6D6">กดเลิกทำได้ถ้าพลาด</span>' : `<span style="font-size:12px;color:#D6D6D6">${esc(S.toast.msg)}</span>`}</span>${S.toast.undoId ? '<button data-act="undo" style="height:36px;padding:0 12px;border-radius:18px;border:none;background:#333;color:#FFE680;font-size:13px;font-weight:700">เลิกทำ</button>' : ''}`;
   layer.appendChild(d);
 }
 
@@ -1494,11 +1503,23 @@ const A = {
   ovMode: (el) => { S.ovMode = el.dataset.v; render(); },
   monOff: (el) => { S.monOff = Math.min(0, (S.monOff || 0) + Number(el.dataset.d)); render(); },
   dayPeriod: (el) => openSheet({ type: 'periodDay', date: el.dataset.d }),
-  periodStart: () => { const t = todayKey(); if (!db.periods.includes(t)) db.periods.push(t); save(); render(); toast('บันทึกประจำเดือนแล้ว', null, 'calm'); },
-  periodStartAt: (el) => { const d = el.dataset.d; if (!db.periods.includes(d)) db.periods.push(d); save(); closeSheet(); render(); },
-  periodEnd: () => { const n = periodNow(); if (!n) return; db.periodEnds[n.start] = todayKey(); save(); render(); },
-  periodEndAt: (el) => { const d = el.dataset.d; const st = [...db.periods].sort().filter((x) => x <= d).pop(); if (st) db.periodEnds[st] = d; save(); closeSheet(); render(); },
-  periodRemove: (el) => { const d = el.dataset.d; const st = [...db.periods].sort().filter((x) => x <= d).pop(); if (st) { db.periods = db.periods.filter((x) => x !== st); delete db.periodEnds[st]; } save(); closeSheet(); render(); },
+
+  periodEnd: () => { const n = periodNow(); if (!n) return; periodEdit('จบรอบวันนี้แล้ว', () => { db.periodEnds[n.start] = todayKey(); }); },
+
+  periodDayOn: (el) => { const d = el.dataset.d; periodEdit('เพิ่ม ' + thDate(d) + ' แล้ว', () => {
+      const P = periodSpans(); const prev = P.find((p) => p.end === addDays(d, -1)); const next = P.find((p) => p.start === addDays(d, 1));
+      if (prev && next) { db.periodEnds[prev.start] = next.end; db.periods = db.periods.filter((x) => x !== next.start); delete db.periodEnds[next.start]; }
+      else if (prev) db.periodEnds[prev.start] = d;
+      else if (next) { db.periods = db.periods.filter((x) => x !== next.start); delete db.periodEnds[next.start]; db.periods.push(d); db.periodEnds[d] = next.end; }
+      else { db.periods.push(d); db.periodEnds[d] = d; } }); },
+  periodDayOff: (el) => { const d = el.dataset.d; periodEdit('เอา ' + thDate(d) + ' ออกแล้ว', () => {
+      const p = periodSpans().find((x) => x.start <= d && x.end >= d); if (!p) return;
+      db.periods = db.periods.filter((x) => x !== p.start); delete db.periodEnds[p.start];
+      if (p.start < d) { db.periods.push(p.start); db.periodEnds[p.start] = addDays(d, -1); }
+      if (p.end > d) { const ns = addDays(d, 1); db.periods.push(ns); db.periodEnds[ns] = p.end; } }); },
+  periodEndAt: (el) => { const d = el.dataset.d; periodEdit('ให้จบ ' + thDate(d) + ' แล้ว', () => { const p = periodSpans().find((x) => x.start <= d && x.end >= d); if (p) db.periodEnds[p.start] = d; }); },
+  periodRemove: (el) => { const d = el.dataset.d; periodEdit('ลบรอบนี้แล้ว', () => { const p = periodSpans().find((x) => x.start <= d && x.end >= d); if (p) { db.periods = db.periods.filter((x) => x !== p.start); delete db.periodEnds[p.start]; } }); },
+  periodStart: () => { const t = todayKey(); periodEdit('บันทึกประจำเดือนแล้ว', () => { if (!db.periods.includes(t)) db.periods.push(t); }); },
   watchOpen: (el) => openSheet({ type: 'watch', date: el.dataset.date }),
   watchDay: (el) => { S.sheet.date = el.dataset.d; S.sheet.v = undefined; renderLayer(); },
   hideWatch: () => { S.hideWatch = true; render(); },
@@ -1626,7 +1647,7 @@ document.addEventListener('click', (ev) => {
   const el = ev.target.closest('[data-act]'); if (!el || el.disabled) return;
   const act = el.dataset.act; if (A[act]) { if (act !== 'overlay') ev.stopPropagation(); A[act](el, ev); }
 });
-document.addEventListener('change', (ev) => { const el = ev.target; if (el.dataset && el.dataset.change === 'periodPick' && el.value) { if (!db.periods.includes(el.value)) db.periods.push(el.value); save(); render(); toast('บันทึกประจำเดือน ' + thDate(el.value), null, 'calm'); } });
+document.addEventListener('change', (ev) => { const el = ev.target; if (el.dataset && el.dataset.change === 'periodPick' && el.value) { const v = el.value; periodEdit('บันทึกประจำเดือน ' + thDate(v), () => { if (!db.periods.includes(v)) db.periods.push(v); }); } });
 document.addEventListener('input', (ev) => {
   const el = ev.target; const k = el.dataset && el.dataset.input; if (!k) return;
   if (k === 'q') { S.q = el.value; S.comp = null; refreshResults(); return; }
@@ -1669,7 +1690,7 @@ else {
 render();
 if (window.__fixSave) setTimeout(() => { try { save(); } catch (e) {} }, 300);
 if ((typeof Cloud !== 'undefined')) Cloud.init();
-const APP_VER = 'v33';
+const APP_VER = 'v35';
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   const had = !!navigator.serviceWorker.controller; let reloaded = false;
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
