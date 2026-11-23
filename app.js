@@ -408,7 +408,7 @@ function vWeek() {
   const wt = bodySeries('weight'); const wtNow = wt.length ? wt[wt.length - 1].weight : p.startWeight;
   const spark = wt.length >= 2 ? (() => { const v = wt.slice(-8).map((b) => b.weight); const mn = Math.min(...v), mx = Math.max(...v) || 1; return `<svg width="120" height="34" viewBox="0 0 120 34" aria-hidden="true" style="margin-left:auto"><polyline points="${v.map((x, i) => (4 + i * 112 / Math.max(1, v.length - 1)).toFixed(1) + ',' + (4 + (mx - x) / Math.max(0.1, mx - mn) * 26).toFixed(1)).join(' ')}" fill="none" stroke="#BDBDBD" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`; })() : '';
   return hero(ovToggle() + '<span style="display:block">' + (S.weekOff ? 'สัปดาห์ ' + thDate(days[0]) : 'สัปดาห์นี้') + '</span>', thDate(days[0]) + ' – ' + thDate(days[6]), { pb: 62, right: `<span class="row" style="gap:6px"><button class="back" data-act="weekOff" data-d="-1" aria-label="สัปดาห์ก่อน" style="width:36px;height:36px">${chev('l', 16)}</button><span role="img" aria-label="ตามเป้า ${onT} จาก ${complete.length} วัน" style="background:#fff;border-radius:16px;padding:8px 10px;display:flex;gap:4px;box-shadow:0 6px 14px rgba(140,100,0,.15)">${dots}</span>${S.weekOff < 0 ? `<button class="back" data-act="weekOff" data-d="1" aria-label="สัปดาห์ถัดไป" style="width:36px;height:36px">${chev('r', 16)}</button>` : ''}</span>` }) +
-    (S.weekOff ? '' : goalCard()) + (reviewCard(days[0]) || (S.weekOff ? '' : reviewCard(addDays(days[0], -7)))) + weekKcalCard(days) + exWeekCard(days[0]) + periodCard() + chinCard + `<button class="card row" data-act="openRecap" data-mon="${mon}" style="border:none;width:calc(100% - 32px);margin-top:12px;gap:12px;text-align:left">${mascot('proud', 46)}<span style="flex:1"><b style="font-size:15px">สรุปสัปดาห์นี้</b><span class="small mut" style="display:block">จดครบ ${days.filter(LOGGED).length}/7 วัน · ดูการ์ด + บันทึกเป็นรูป</span></span>${chev('r', 16)}</button>` +
+    (S.weekOff ? '' : goalCard()) + (reviewCard(days[0]) || (S.weekOff ? '' : reviewCard(addDays(days[0], -7)))) + weekKcalCard(days) + exWeekCard(days[0]) + periodCard() + chinCard +
     `<div style="margin:12px 16px 0"><button class="btn" data-act="nav" data-to="weighin">วัดรอบเอว + ชั่งน้ำหนัก</button></div>` + nav();
 }
 
@@ -1683,13 +1683,13 @@ else {
   else {
     const now = new Date(); const thisMon = mondayOf(todayKey()); const lastMon = addDays(thisMon, -7);
     const pick = now.getDay() === 0 && now.getHours() >= 17 ? thisMon : (now.getDay() >= 1 && now.getDay() <= 2 ? lastMon : null);
-    if (pick && !db.seenRecap[pick] && pick >= mondayOf(db.profile.startDate) && [...Array(7)].some((_, i) => entriesOn(addDays(pick, i)).length)) { S.view = 'recap'; S.recapMon = pick; S.recapBack = 'today'; }
+    if (false && pick && !db.seenRecap[pick] && pick >= mondayOf(db.profile.startDate) && [...Array(7)].some((_, i) => entriesOn(addDays(pick, i)).length)) { S.view = 'recap'; S.recapMon = pick; S.recapBack = 'today'; }
   }
 }
 render();
 if (window.__fixSave) setTimeout(() => { try { save(); } catch (e) {} }, 300);
 if ((typeof Cloud !== 'undefined')) Cloud.init();
-const APP_VER = 'v36';
+const APP_VER = 'v37';
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   const had = !!navigator.serviceWorker.controller; let reloaded = false;
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
