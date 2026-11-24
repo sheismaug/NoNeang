@@ -31,7 +31,21 @@ const Cloud = {
       let sug = null;
       try { const sc = suggestCombos(k, 'all'); const b = sc.combos[0];
         if (b) sug = { items: b.items.map((i) => ({ icon: i.food.icon, q: i.food.kind === 'sized' ? i.grams + 'g' : '×' + i.qty, name: i.food.name })), k: Math.round(b.sum.k), p: Math.round(b.sum.p) }; } catch (e) {}
-      return { date: k, name: db.profile.name || '', goal: Math.round(goalOf(k)), base: Math.round(goalOf(k)), eaten: Math.round(t.k), protein: Math.round(t.p), pT, fiber: Math.round(t.f), fT: FIBER, streak: streakInfo().cur, loggedToday: LOGGED(k), sug, at: new Date().toISOString() };
+      return { date: k, name: db.profile.name || '', goal: Math.round(goalOf(k)), base: Math.round(goalOf(k)), eaten: Math.round(t.k), protein: Math.round(t.p), pT, fiber: Math.round(t.f), fT: FIBER, streak: streakInfo().cur, loggedToday: LOGGED(k), sug, at: new Date().toISOString(), hist: this.history(k, pT) };
+    } catch (e) { return null; }
+  },
+  /* numbers only (no food names) for the weekly KANN life summary: last 70 days + body log */
+  history(k, pT) {
+    try {
+      const days = [];
+      for (let i = 69; i >= 0; i--) {
+        const d = addDays(k, -i); const t = totals(d); const st = db.dayStatus[d] || null;
+        if (!t.k && !st) continue;
+        days.push({ d, k: Math.round(t.k), g: Math.round(goalOf(d)), ok: t.k > 0 && t.k <= okOf(d), p: Math.round(t.p), pT, f: Math.round(t.f), st });
+      }
+      const from = addDays(k, -120);
+      const body = db.body.filter((b) => b.date >= from).sort((a, b) => a.date.localeCompare(b.date)).map((b) => ({ d: b.date, w: b.weight ?? null, ws: b.waist ?? null }));
+      return { v: 1, days, body };
     } catch (e) { return null; }
   },
   queue() {
