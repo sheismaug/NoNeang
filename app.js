@@ -679,9 +679,9 @@ function waistDue() { const w = bodySeries('waist'); const last = w.length ? w[w
   return { due: gap >= 7 || (mon && last < mondayOf(t)), gap, first: false }; }
 const waistPill = () => { const d = waistDue(); if (!d.due) return '';
   return `<button data-act="nav" data-to="weighin" aria-label="ถึงวันวัดรอบเอว" style="border:none;background:#fff;border-radius:20px;padding:4px 12px 4px 4px;display:inline-flex;align-items:center;gap:6px;box-shadow:0 0 0 2px #1F1F1F inset"><span class="ic" style="width:28px;height:28px;border-radius:14px;background:#FFF3B0">${svgI('tape', 18)}</span><b style="font-size:13px">${d.first ? 'วัดรอบเอว' : 'ถึงวันวัดเอว'}</b>${chev('r', 12)}</button>`; };
-const flameChip = (n) => `<button data-act="nav" data-to="stickers" aria-label="จดติดต่อกัน ${n} วัน · ดูแผ่นสติกเกอร์" style="border:none;background:#fff;border-radius:20px;padding:4px 10px 4px 4px;display:inline-flex;align-items:center;gap:4px;box-shadow:0 4px 12px rgba(160,120,0,.18);margin-top:6px"><span class="ic" style="width:26px;height:26px;border-radius:13px;background:#FFE6E0">${svgI('flame', 18)}</span><b style="font-size:15px">${n}</b><span style="font-size:12px;font-weight:600">วัน</span></button>`;
+const flameChip = (n) => `<span role="img" aria-label="จดติดต่อกัน ${n} วัน" style="border:none;background:#fff;border-radius:20px;padding:4px 10px 4px 4px;display:inline-flex;align-items:center;gap:4px;box-shadow:0 4px 12px rgba(160,120,0,.18);margin-top:6px"><span class="ic" style="width:26px;height:26px;border-radius:13px;background:#FFE6E0">${svgI('flame', 18)}</span><b style="font-size:15px">${n}</b><span style="font-size:12px;font-weight:600">วัน</span></span>`;
 
-function markDay(k, status) { db.dayStatus[k] = status; save(); S.toast = null; clearTimeout(toastTimer); S.sheet = { type: 'celebrate', date: k }; render(); }
+function markDay(k, status) { db.dayStatus[k] = status; save(); S.sheet = null; render(); toast(status === 'special' ? 'บันทึกเป็นวันมื้อพิเศษแล้ว' : 'จดครบ ' + (k === todayKey() ? 'วันนี้' : thDate(k)) + ' แล้ว', null, 'yay'); }
 
 /* --- today helpers --- */
 function sameAsYesterday() {
@@ -1689,7 +1689,7 @@ else {
 render();
 if (window.__fixSave) setTimeout(() => { try { save(); } catch (e) {} }, 300);
 if ((typeof Cloud !== 'undefined')) Cloud.init();
-const APP_VER = 'v37';
+const APP_VER = 'v38';
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   const had = !!navigator.serviceWorker.controller; let reloaded = false;
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
