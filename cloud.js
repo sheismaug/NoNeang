@@ -34,7 +34,7 @@ const Cloud = {
       return { date: k, name: db.profile.name || '', goal: Math.round(goalOf(k)), base: Math.round(goalOf(k)), eaten: Math.round(t.k), protein: Math.round(t.p), pT, fiber: Math.round(t.f), fT: FIBER, streak: streakInfo().cur, loggedToday: LOGGED(k), sug, at: new Date().toISOString(), hist: this.history(k, pT) };
     } catch (e) { return null; }
   },
-  /* numbers only (no food names) for the weekly KANN life summary: last 70 days + body log */
+  /* for the weekly KANN life summary: last 70 days of daily totals + meal list, and the body log */
   history(k, pT) {
     try {
       const days = [];
@@ -45,7 +45,10 @@ const Cloud = {
       }
       const from = addDays(k, -120);
       const body = db.body.filter((b) => b.date >= from).sort((a, b) => a.date.localeCompare(b.date)).map((b) => ({ d: b.date, w: b.weight ?? null, ws: b.waist ?? null }));
-      return { v: 1, days, body };
+      const since = addDays(k, -69); const hm = (iso) => { try { const x = new Date(iso); return String(x.getHours()).padStart(2, '0') + ':' + String(x.getMinutes()).padStart(2, '0'); } catch (e) { return null; } };
+      const meals = db.entries.filter((e) => e.date >= since && e.date <= k).sort((a, b) => (a.date + (a.createdAt || '')).localeCompare(b.date + (b.createdAt || '')))
+        .map((e) => ({ d: e.date, s: e.slot, t: e.createdAt ? hm(e.createdAt) : null, n: e.name, c: e.cat || null, q: e.qty, u: e.unitLabel || '', k: Math.round(e.k), p: Math.round(e.p), f: Math.round(e.f), est: e.src === 'est' }));
+      return { v: 2, days, body, meals };
     } catch (e) { return null; }
   },
   queue() {
