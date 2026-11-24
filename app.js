@@ -200,7 +200,7 @@ function vToday() {
           <div class="row">${fillTile('veg', Math.min(100, t.f / FIBER * 100), '#B7E0C2', '#F1F8F2')}<div><div style="font-size:13px;font-weight:700">Fiber <span class="mut" style="font-weight:500">${Math.round(t.f)}/${FIBER}</span></div><div class="small mut">${t.f >= FIBER ? 'ครบแล้ว ✓' : 'ขาด ' + Math.round(FIBER - t.f) + ' g'}</div></div></div>
         </div></div>
       ${exRow()}
-      <div class="row" style="gap:8px;margin-top:10px"><span style="font-size:13px;font-weight:700;white-space:nowrap;min-width:62px">วันนี้มี</span><div style="flex:1;min-width:0">${shiftChip(k)}</div></div></div>` + todayBody() + nav();
+      <div class="row" style="gap:8px;margin-top:10px"><span style="font-size:13px;font-weight:700;white-space:nowrap;min-width:62px">วันนี้มี</span><div style="flex:1;min-width:0">${shiftChip(k)}</div></div>${rescueLink(k)}</div>` + todayBody() + nav();
 }
 
 function vSuggest() {
@@ -482,6 +482,7 @@ function sheetHtml() {
   if (s.type === 'celebrate') return celebrateHtml(s);
   const wrap = (inner, center = false) => `<div class="overlay ${center ? 'center' : ''}" data-act="overlay"><div class="${center ? 'modal' : 'sheet'}" role="dialog" aria-modal="true" data-stop="1">${center ? '' : '<span class="handle"></span>'}${inner}</div></div>`;
   const closeBtn = '<button class="back" data-act="close" aria-label="ปิด" style="width:40px;height:40px">' + xIcon + '</button>';
+  if (s.type === 'rescue') return rescueSheet(s, wrap, closeBtn);
   if (s.type === 'cloud') return wrap(cloudSheet(s, closeBtn));
   if (s.type === 'widget') return wrap(widgetSheet(closeBtn));
   if (s.type === 'cloudPick') return wrap(`<div class="row"><b style="flex:1;font-size:19px">มีข้อมูล 2 ชุด ใช้ชุดไหน?</b></div>
@@ -657,6 +658,86 @@ function sheetHtml() {
   return '';
 }
 
+/* ================= rescue: หิวมาก / อยากหวาน survival plan ================= */
+const SWEET_IC = new Set(['icecream', 'cake', 'boba', 'waffle', 'yogurt', 'milk', 'shake', 'guava', 'apple', 'mango', 'banana', 'orange']);
+const FRUIT_IC = new Set(['guava', 'apple', 'mango', 'banana', 'orange']);
+const TREAT_IC = new Set(['icecream', 'cake', 'boba', 'waffle']);
+const SWEET_RX = /หวาน|ขนม|เค้ก|ไอติม|ไอศ|ช็อก|ช๊อก|ชอค|โกโก้|นม|โยเกิร์ต|ผลไม้|กล้วย|ส้ม|ฝรั่ง|แอปเปิ้ล|แอปเปิล|มะม่วง|แตงโม|สับปะรด|มะละกอ|องุ่น|เยลลี่|เจลลี่|บิงซู|ชาไทย|ชานม|ไข่หวาน|ลูกชุบ|ทองหยิบ|ฝอยทอง|บราวนี่|คุกกี้|โดนัท|วาฟเฟิล|พุดดิ้ง|ไอซ์|ice|cake|choc|milk|yogurt/i;
+const VEG_RX = /ผัก|สลัด|ต้มจืด|ซุป|แกงจืด|เห็ด|บร็อค|บรอค|กะหล่ำ|แตงกวา/;
+/* foods Cheese actually logged lately, grouped by name with their usual portion */
+function rescueFoods() {
+  const since = addDays(todayKey(), -45); const by = new Map();
+  db.entries.filter((e) => e.date >= since && e.k > 0).forEach((e) => { const g = by.get(e.name) || { name: e.name, icon: e.icon || CAT_ICON[e.cat] || 'main', cat: e.cat, es: [] }; g.es.push(e); by.set(e.name, g); });
+  const med = (a) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+  return [...by.values()].map((g) => { const last = g.es[g.es.length - 1];
+    const it = { name: g.name, icon: g.icon, cat: g.cat, n: g.es.length, k: Math.round(med(g.es.map((e) => e.k))), p: Math.round(med(g.es.map((e) => e.p))), f: med(g.es.map((e) => e.f)), unit: last.unitLabel || '' };
+    it.veg = g.icon === 'veg' || g.icon === 'salad' || g.icon === 'broc' || g.cat === 'veg' || VEG_RX.test(g.name);
+    it.sweet = SWEET_IC.has(g.icon) || SWEET_RX.test(g.name); it.fruit = FRUIT_IC.has(g.icon); it.treat = TREAT_IC.has(g.icon);
+    it.fill = (it.p * 4 + it.f * 10 + (it.veg ? 40 : 0)) / Math.max(it.k, 25); return it; });
+}
+function rescueCtx() {
+  const k = todayKey(); const t = totals(k); const rem = Math.round(goalOf(k) - t.k);
+  const now = new Date(); const h = now.getHours() + now.getMinutes() / 60; const shift = shiftOn(k);
+  const bed = shift ? 25 : 23; const hrs = Math.max(0, bed - h);
+  let bank = 0; for (let d = mondayOf(k); d < k; d = addDays(d, 1)) { const td = totals(d); if (td.k > 0) bank += goalOf(d) - td.k; }
+  const pn = periodNow(); const nx = periodNext(); const dn = nx ? daysBetween(k, nx) : null;
+  const phase = pn ? 'period' : (dn != null && dn >= 0 && dn <= 7 ? 'pms' : null);
+  return { k, t, rem, h, hrs, shift, bank: Math.round(bank), phase, dn, Pg: Math.max(0, proteinTarget() - t.p), Fg: Math.max(0, FIBER - t.f) };
+}
+const rFood = (it, tag = '') => `<div class="row" style="padding:9px 10px;border-bottom:1px solid #F2EEE6;gap:10px">${iconBox(it.icon, 20, 36)}<span style="flex:1;min-width:0"><b style="font-size:14px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</b><span class="small mut">${esc(it.unit)}${it.p >= 5 ? ' · P ' + it.p + ' g' : ''}${tag ? ' · ' + tag : ''}</span></span><b style="font-size:14px;white-space:nowrap">${fmt(it.k)}</b><button class="chip" data-act="rescueLog" data-n="${esc(it.name)}" style="height:32px">จด</button></div>`;
+const rStep = (n, ic, title, body, inner = '') => `<div style="background:#fff;border:1.5px solid #F2EEE6;border-radius:20px;padding:12px 14px;display:flex;flex-direction:column;gap:8px"><div class="row" style="gap:10px;align-items:flex-start"><span class="ic" style="width:26px;height:26px;border-radius:13px;background:#FFD000;font-size:13px;font-weight:700;flex-shrink:0">${n}</span><span style="flex:1;min-width:0"><b style="font-size:15px;display:block;line-height:1.4">${title}</b><span class="small mut" style="line-height:1.55;display:block">${body}</span></span>${ic ? iconBox(ic, 18, 32) : ''}</div>${inner ? '<div style="border-radius:14px;border:1px solid #F2EEE6;overflow:hidden">' + inner + '</div>' : ''}</div>`;
+function pickFit(list, budget, max = 3) { const out = []; let left = budget;
+  for (const it of list) { if (out.length >= max) break; if (it.k <= left && !out.some((o) => o.name === it.name)) { out.push(it); left -= it.k; } } return out; }
+function rescuePlan(mode) {
+  const c = rescueCtx(); const foods = rescueFoods(); const rem = Math.max(0, c.rem); const steps = []; let head, sub, mood;
+  const late = c.h >= 20 || c.hrs <= 2.5; const hl = c.hrs >= 1 ? 'อีกราว ' + Math.round(c.hrs) + ' ชม. ถึงเวลานอน' + (c.shift ? ' (วันเวร)' : '') : 'ใกล้เวลานอนแล้ว';
+  const tight = rem <= 80; const extra = c.bank >= 150 ? Math.min(200, Math.round(c.bank / 2 / 10) * 10) : 0;
+  if (mode === 'hungry') {
+    mood = 'calm'; head = 'หิวมาก ไม่เป็นไรนะ';
+    sub = (c.rem > 0 ? 'เหลือ ' + fmt(rem) + ' kcal' : 'วันนี้ครบงบแล้ว') + ' · ' + hl;
+    steps.push(['drink', 'ดื่มน้ำ 1–2 แก้ว หรือชา/กาแฟดำร้อน ก่อน', 'บางทีร่างกายสับสนกระหายน้ำกับหิว ของร้อนช่วยให้ท้องอิ่มขึ้นเร็ว และไม่มีแคลเลย']);
+    const fillers = foods.filter((f) => !f.treat).sort((a, b) => b.fill - a.fill);
+    if (!tight) {
+      const nowB = !late && c.hrs > 3 && rem > 250 ? Math.round(rem * 0.6) : rem;
+      const prot = fillers.filter((f) => f.p >= 6 && !f.veg); const vegs = fillers.filter((f) => f.veg).sort((a, b) => a.k - b.k);
+      const order = c.Pg > 10 ? [...prot.filter((f) => f.k <= nowB - (vegs[0] ? vegs[0].k : 0)).slice(0, 1), ...vegs, ...prot, ...fillers] : [...vegs, ...prot, ...fillers];
+      const now = pickFit(order, nowB, nowB >= 150 ? 2 : 1); const used = now.reduce((a, b) => a + b.k, 0);
+      const later = !late && nowB < rem ? pickFit(fillers.filter((f) => !now.includes(f)), rem - used, 1) : [];
+      const bodyTxt = now.length ? 'เลือกของที่อิ่มนานจากที่ชีสกินบ่อย (โปรตีน · ไฟเบอร์ · ผัก) ' + (nowB < rem ? 'ใช้ราว ' + fmt(nowB) + ' kcal ก่อน' : 'ในงบ ' + fmt(rem) + ' kcal') : 'ผักต้ม/ต้มจืดผัก 1 ถ้วย (~40 kcal) หรือไข่ต้ม 1 ฟอง (~75 kcal) อิ่มเยอะแต่แคลน้อย';
+      steps.push(['veg', 'กินของอิ่มนานก่อน', bodyTxt + (c.Pg > 15 ? ' · โปรตีนยังขาด ' + Math.round(c.Pg) + ' g ด้วย' : ''), now.map((i) => rFood(i)).join('')]);
+      if (later.length) steps.push(['main', 'เก็บไว้หน่อยสำหรับทีหลัง', 'ถ้ายังหิวก่อนนอน ยังมีที่ให้อันนี้อีก ไม่ต้องกลัวว่าจะหิวจนทนไม่ไหว', later.map((i) => rFood(i)).join('')]);
+    } else {
+      const free = fillers.filter((f) => f.k <= 80 && (f.veg || f.p >= 5)).slice(0, 2);
+      steps.push(['veg', 'ถ้ายังหิวจริง เลือกของแคลต่ำมาก', 'ผักต้ม ต้มจืดผัก หรือซุปใส อิ่มท้องโดยแทบไม่เพิ่มแคล' + (free.length ? ' หรือของที่ชีสกินบ่อยด้านล่าง' : ''), free.map((i) => rFood(i)).join('')]);
+      if (extra) steps.push(['flame', 'สัปดาห์นี้ชีสเก็บแต้มไว้ ' + fmt(c.bank) + ' kcal', 'ถ้าหิวจนนอนไม่หลับ กินเพิ่มได้อีกราว ' + fmt(extra) + ' kcal โดยรวมทั้งสัปดาห์ยังอยู่ในงบ เลือกโปรตีนก่อนนะ']);
+    }
+    steps.push(['watch', 'กินช้าๆ แล้วรอ 20 นาที', late ? 'สัญญาณอิ่มใช้เวลาเดินทางถึงสมอง ถ้ารอแล้วยังหิว ค่อยดูอีกที ใกล้นอนแล้วการแปรงฟันช่วยปิดครัวได้ดี' : 'สัญญาณอิ่มใช้เวลาเดินทางถึงสมอง ถ้ารอแล้วยังหิว ค่อยกินส่วนที่เก็บไว้']);
+  } else {
+    mood = 'wave'; head = 'อยากหวาน มีทางไปต่อแน่นอน';
+    sub = (c.rem > 0 ? 'เหลือ ' + fmt(rem) + ' kcal' : 'วันนี้ครบงบแล้ว') + ' · ' + hl;
+    steps.push(['watch', 'รอ 10–15 นาที กับน้ำเย็นสักแก้ว', 'ความอยากหวานมาเป็นคลื่น ส่วนใหญ่จะเบาลงเองถ้ารอสักพัก ลุกไปทำอย่างอื่น หรือแปรงฟันก็ช่วยได้']);
+    const sw = foods.filter((f) => f.sweet && !f.treat).sort((a, b) => a.k - b.k || b.n - a.n);
+    const swFit = pickFit(sw, Math.max(rem, tight ? 120 : rem), 3);
+    steps.push([swFit[0] ? swFit[0].icon : 'apple', 'ถ้ายังอยาก เลือกหวานเบาๆ ที่ชีสชอบ', swFit.length ? 'จากของหวานที่ชีสจดบ่อย เรียงจากแคลน้อยไปมาก' + (tight ? ' (วันนี้งบเกือบหมด เลือกอันแรกๆ)' : '') : 'ผลไม้ 1 ส่วน เช่น ฝรั่งหรือส้ม (~60 kcal) หรือนมจืด/โยเกิร์ตไม่หวาน หวานพอดีและมีไฟเบอร์หรือโปรตีนช่วย', swFit.map((i) => rFood(i)).join('')]);
+    const tr = foods.filter((f) => f.treat).sort((a, b) => b.n - a.n)[0];
+    const room = rem + extra;
+    if (room >= 180) steps.push([tr ? tr.icon : 'cake', 'หรือถ้าอยากของหวานจริงๆ กินได้ 1 อย่าง', 'แบ่งเป็นชิ้นเล็ก ไม่เกินราว ' + fmt(Math.min(250, Math.round(room * 0.6 / 10) * 10)) + ' kcal ใส่จานแล้วนั่งกินช้าๆ ให้รู้สึกถึงรสชาติ' + (tr ? ' เช่น ' + esc(tr.name) + ' ครึ่งส่วน' : '') + (rem < 180 && extra ? ' (ใช้แต้มที่เก็บไว้ในสัปดาห์นี้)' : '')]);
+    else if (extra) steps.push(['flame', 'สัปดาห์นี้ชีสเก็บแต้มไว้ ' + fmt(c.bank) + ' kcal', 'ถ้าอยากมากจริงๆ หวานเล็กๆ อีก ' + fmt(extra) + ' kcal ทั้งสัปดาห์ก็ยังอยู่ในงบ']);
+    if (late) steps.push(['watch', 'ใกล้นอนแล้ว นอนเร็วขึ้นอีกนิดช่วยได้มาก', 'นอนน้อยหรือดึก ทำให้อยากหวานมากขึ้นในวันถัดไป แปรงฟันแล้วปิดครัวคืนนี้']);
+  }
+  let note = null;
+  if (c.phase === 'pms') note = (mode === 'hungry' ? 'อีก ' + c.dn + ' วันน่าจะเป็นเมนส์ ช่วงนี้ร่างกายใช้พลังงานเพิ่มขึ้นเล็กน้อย หิวง่ายขึ้นเป็นเรื่องปกติ ไม่ได้แปลว่าชีสใจไม่สู้' : 'อีก ' + c.dn + ' วันน่าจะเป็นเมนส์ ช่วงนี้ฮอร์โมนทำให้อยากหวานมากขึ้นจริงๆ เป็นเรื่องปกติ ไม่ได้แปลว่าชีสใจไม่สู้');
+  if (c.phase === 'period') note = 'ช่วงเมนส์ ร่างกายเหนื่อยกว่าปกติ ' + (mode === 'hungry' ? 'ของอุ่นๆ อย่างซุปหรือต้มจืดช่วยให้สบายท้อง' : 'ช็อกโกแลตเข้มชิ้นเล็กๆ หรือโกโก้ร้อนไม่หวาน ก็ช่วยได้') + ' ไม่ต้องกดดันตัวเองนะ';
+  return { c, steps, head, sub, mood, note };
+}
+function rescueSheet(s, wrap, closeBtn) {
+  const r = rescuePlan(s.mode); const bg = s.mode === 'hungry' ? '#FFE6D6' : '#FFE8F3';
+  return wrap(`<div class="row" style="gap:12px;align-items:center"><span class="ic" style="width:60px;height:60px;border-radius:30px;background:${bg};flex-shrink:0">${mascot(r.mood, 52)}</span><span style="flex:1;min-width:0"><b style="font-size:18px;display:block;line-height:1.35">${r.head}</b><span class="small mut">${r.sub}</span></span>${closeBtn}</div>
+    ${r.note ? `<div class="row" style="gap:10px;background:#FFF5F8;border-radius:16px;padding:10px 12px;align-items:flex-start"><span class="ic" style="width:24px;height:24px;border-radius:12px;background:#FFD6E5;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c3 5 6 8 6 12a6 6 0 0 1-12 0c0-4 3-7 6-12z" fill="#F06A99"/></svg></span><span class="small" style="line-height:1.55;color:#5A3A45">${r.note}</span></div>` : ''}
+    <div style="display:flex;flex-direction:column;gap:10px;overflow:auto;min-height:0">${r.steps.map((x, i) => rStep(i + 1, x[0], x[1], x[2], x[3])).join('')}</div>
+    <button class="btn" data-act="close">โอเค ไปต่อได้</button><button class="link" data-act="rescueAsk" data-m="${s.mode}">อยากคุยกับ Claude ต่อ ›</button>`);
+}
+
 /* ================= habits: streak · stickers · reward · recap ================= */
 const LOGGED = (k) => db.dayStatus[k] === 'done' || db.dayStatus[k] === 'special';
 function streakInfo() {
@@ -686,6 +767,7 @@ const shiftOn = (k) => !!(db.shifts && db.shifts[k]);
 const flagOn = (k, f) => !!(db.dayFlags && db.dayFlags[k] && db.dayFlags[k][f]);
 const CHECK14 = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>';
 const dayPill = (act, k, f, on, ic, label, bg) => `<button data-act="${act}" data-d="${k}" data-f="${f}" aria-pressed="${on}" style="flex:1;min-width:0;height:40px;border-radius:20px;${on ? 'border:none;background:' + bg : 'border:1.5px solid #E8E2D0;background:#fff'};display:inline-flex;align-items:center;justify-content:center;gap:3px;font-size:12.5px;font-weight:700;white-space:nowrap;padding:0 3px">${ic}${label}</button>`;
+const rescueLink = (k) => { const m = flagOn(k, 'hungry') ? 'hungry' : flagOn(k, 'sweet') ? 'sweet' : null; if (!m || k !== todayKey()) return ''; return `<button data-act="rescueOpen" data-m="${m}" style="margin-top:8px;width:100%;border:none;background:#FFFBEB;border-radius:16px;min-height:42px;padding:6px 12px;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ink)">${iconBox(m === 'hungry' ? 'soup' : 'icecream', 14, 26)}<span style="flex:1;text-align:left">${m === 'hungry' ? 'หิวมาก' : 'อยากหวาน'} · ดูวิธีผ่านวันนี้ไปให้รอด</span>›</button>`; };
 const shiftChip = (k) => `<div class="row" style="gap:6px">${dayPill('shiftToggle', k, 'shift', shiftOn(k), '<span class="ic" style="width:22px;height:22px;border-radius:11px;background:#fff"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4a8 8 0 1 0 5 13A6.5 6.5 0 0 1 15 4z" fill="#B9B1F0" stroke="#1F1F1F" stroke-width="1.5" stroke-linejoin="round"/></svg></span>', 'เวรบ่าย', '#ECE9FC')}${dayPill('flagToggle', k, 'hungry', flagOn(k, 'hungry'), iconBox('soup', 14, 22), 'หิวมาก', '#FFE6D6')}${dayPill('flagToggle', k, 'sweet', flagOn(k, 'sweet'), iconBox('icecream', 14, 22), 'อยากหวาน', '#FFE8F3')}</div>`;
 
 function markDay(k, status) { db.dayStatus[k] = status; save(); S.sheet = null; render(); toast(status === 'special' ? 'บันทึกเป็นวันมื้อพิเศษแล้ว' : 'จดครบ ' + (k === todayKey() ? 'วันนี้' : thDate(k)) + ' แล้ว', null, 'yay'); }
@@ -1497,7 +1579,10 @@ const A = {
     window.open('https://claude.ai/new?q=' + encodeURIComponent(txt), '_blank'); },
   goalWStep: (el) => { S.sheet.v = Math.max(35, (S.sheet.v ?? (db.profile.goalWeight || 70)) + Number(el.dataset.d)); renderLayer(); },
   goalWSave: () => { db.profile.goalWeight = S.sheet.v ?? (db.profile.goalWeight || 70); save(); closeSheet(); render(); },
-  flagToggle: (el) => { const d = el.dataset.d, f = el.dataset.f; db.dayFlags = db.dayFlags || {}; const o = db.dayFlags[d] || {}; if (o[f]) delete o[f]; else o[f] = 1; if (Object.keys(o).length) db.dayFlags[d] = o; else delete db.dayFlags[d]; save(); render(); },
+  flagToggle: (el) => { const d = el.dataset.d, f = el.dataset.f; db.dayFlags = db.dayFlags || {}; const o = db.dayFlags[d] || {}; const turnOn = !o[f]; if (o[f]) delete o[f]; else o[f] = 1; if (Object.keys(o).length) db.dayFlags[d] = o; else delete db.dayFlags[d]; save(); render(); if (turnOn && d === todayKey()) openSheet({ type: 'rescue', mode: f }); },
+  rescueOpen: (el) => openSheet({ type: 'rescue', mode: el.dataset.m }),
+  rescueAsk: (el) => openSheet({ type: 'ask', sel: [el.dataset.m === 'hungry' ? 'หิวมาก' : 'อยากกินของหวาน'] }),
+  rescueLog: (el) => { const nm = el.dataset.n; const e = [...db.entries].reverse().find((x) => x.name === nm); if (!e) return; const f = foodById(e.foodId) || { id: e.foodId, name: e.name, icon: e.icon, cat: e.cat, kind: 'item', unit: '' }; const ne = addEntry(f, { n: { k: e.k, p: e.p, f: e.f }, qty: e.qty, grams: e.grams, date: todayKey(), slot: slotNow(), src: e.src }); if (!ne) return; ne.unitLabel = e.unitLabel; save(); closeSheet(); render(); toast('จด ' + nm + ' แล้ว'); },
   shiftToggle: (el) => { const d = el.dataset.d; db.shifts = db.shifts || {}; if (db.shifts[d]) delete db.shifts[d]; else db.shifts[d] = true; save(); render(); },
   breakStart: () => { db.dietBreak = { start: todayKey(), days: 7 }; save(); render(); toast('เริ่มพักเครื่อง · เป้า ' + fmt(goalOf()) + ' kcal', null, 'yay'); },
   breakStop: () => { if (db.dietBreak) db.dietBreak.end = addDays(todayKey(), -1); save(); render(); toast('กลับสู่เป้า ' + fmt(goalOf())); },

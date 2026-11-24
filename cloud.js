@@ -53,7 +53,8 @@ const Cloud = {
       const pf = db.profile || {};
       const profile = { sex: pf.sex || null, height: pf.height || null, startWeight: pf.startWeight || null, goalWeight: pf.goalWeight || null, startDate: pf.startDate || null, activity: pf.activity || pf.act || null };
       let energy = null; try { energy = { bmr: Math.round(bmr(pf)), formula: Math.round(baseTDEE(pf)), real: typeof realTDEE === 'function' ? realTDEE() : null, age: ageOf(pf.birth) }; } catch (e) {}
-      return { v: 6, days, body, meals, ex, exGoal: db.exGoal || null, profile, energy };
+      let cycle = null; try { cycle = { periods: periodSpans().filter((x) => x.start >= from).map((x) => ({ s: x.start, e: x.end })), next: periodNext() }; } catch (e) {}
+      return { v: 7, days, body, meals, ex, exGoal: db.exGoal || null, profile, energy, cycle };
     } catch (e) { return null; }
   },
   queue() {
