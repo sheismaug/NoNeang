@@ -40,8 +40,8 @@ const Cloud = {
       const days = [];
       for (let i = 69; i >= 0; i--) {
         const d = addDays(k, -i); const t = totals(d); const st = db.dayStatus[d] || null;
-        if (!t.k && !st) continue;
-        days.push({ d, k: Math.round(t.k), g: Math.round(goalOf(d)), ok: t.k > 0 && t.k <= okOf(d), p: Math.round(t.p), pT, f: Math.round(t.f), st });
+        if (!t.k && !st && !(db.shifts && db.shifts[d])) continue;
+        days.push({ d, k: Math.round(t.k), g: Math.round(goalOf(d)), ok: t.k > 0 && t.k <= okOf(d), p: Math.round(t.p), pT, f: Math.round(t.f), st, sh: (db.shifts && db.shifts[d]) ? 1 : 0 });
       }
       const from = addDays(k, -120);
       const body = db.body.filter((b) => b.date >= from).sort((a, b) => a.date.localeCompare(b.date)).map((b) => ({ d: b.date, w: b.weight ?? null, ws: b.waist ?? null }));
@@ -50,7 +50,7 @@ const Cloud = {
         .map((e) => ({ d: e.date, s: e.slot, t: e.createdAt ? hm(e.createdAt) : null, n: e.name, c: e.cat || null, q: e.qty, u: e.unitLabel || '', k: Math.round(e.k), p: Math.round(e.p), f: Math.round(e.f), est: e.src === 'est' }));
       const ex = (db.workouts || []).filter((w) => w.date >= since && w.date <= k).sort((a, b) => a.date.localeCompare(b.date))
         .map((w) => ({ d: w.date, t: w.type, min: w.min || null, n: w.name || null }));
-      return { v: 3, days, body, meals, ex, exGoal: db.exGoal || null };
+      return { v: 4, days, body, meals, ex, exGoal: db.exGoal || null };
     } catch (e) { return null; }
   },
   queue() {

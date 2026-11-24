@@ -199,7 +199,8 @@ function vToday() {
           <div class="row">${fillTile('chicken', Math.min(100, t.p / pT * 100), '#FFC4A3', '#FFF1EA')}<div><div style="font-size:13px;font-weight:700">Protein <span class="mut" style="font-weight:500">${Math.round(t.p)}/${pT}</span></div><div class="small mut">${t.p >= pT ? 'ครบแล้ว ✓' : 'ขาด ' + Math.round(pT - t.p) + ' g'}</div></div></div>
           <div class="row">${fillTile('veg', Math.min(100, t.f / FIBER * 100), '#B7E0C2', '#F1F8F2')}<div><div style="font-size:13px;font-weight:700">Fiber <span class="mut" style="font-weight:500">${Math.round(t.f)}/${FIBER}</span></div><div class="small mut">${t.f >= FIBER ? 'ครบแล้ว ✓' : 'ขาด ' + Math.round(FIBER - t.f) + ' g'}</div></div></div>
         </div></div>
-      ${exRow()}</div>` + todayBody() + nav();
+      ${exRow()}
+      <div class="row" style="gap:8px;margin-top:10px"><span style="font-size:13px;font-weight:700;white-space:nowrap;min-width:62px">วันนี้มีเวร</span>${shiftChip(k)}<span style="flex:1"></span><span style="width:40px;flex-shrink:0"></span></div></div>` + todayBody() + nav();
 }
 
 function vSuggest() {
@@ -343,6 +344,7 @@ function vLog() {
     return `<div data-slotzone="${s.id}" style="display:flex;flex-direction:column;gap:10px;border-radius:20px;transition:background .15s">${head}${rows}</div>`; }).join('');
   return topBar('บันทึกการกิน', '', 'today') +
     `<div class="card row" style="padding:6px"><button class="back" data-act="logDay" data-d="-1" ${k <= min ? 'disabled style="opacity:.3"' : ''} aria-label="วันก่อนหน้า">${chev('l', 18)}</button><div style="flex:1;text-align:center"><b style="font-size:17px">${k === todayKey() ? 'วันนี้' : k === addDays(todayKey(), -1) ? 'เมื่อวาน' : thDate(k)}</b><span class="small mut" style="display:block">${thDate(k)} · ย้อนได้ 7 วัน</span></div><button class="back" data-act="logDay" data-d="1" ${k >= todayKey() ? 'disabled style="opacity:.3"' : ''} aria-label="วันถัดไป">${chev('r', 18)}</button></div>
+    <div style="margin:10px 20px 0">${shiftChip(k)}</div>
     <div class="row" style="margin:14px 20px 0;justify-content:space-between"><span class="mut">รวม <b style="color:var(--ink);font-size:18px">${fmt(t.k)}</b> / ${fmt(goal)} kcal${entriesOn(k).length ? '<span class="small" style="display:block;font-size:11px">กดค้างที่รายการแล้วลาก เพื่อย้ายมื้อ</span>' : ''}</span>${st === 'done' ? '<span class="badge" style="background:var(--greenL)">ครบแล้ว ✓</span>' : st === 'special' ? `<span class="badge" style="background:#FFE8F3">${svgI('cake', 14)} มื้อพิเศษ</span>` : ''}</div>
     <div style="margin:14px 16px 0;position:relative;display:flex;flex-direction:column;gap:10px"><div style="position:absolute;left:16px;top:18px;bottom:18px;width:2px;background:#EFEFEC"></div>${items}</div>
     ${logExCard(k)}
@@ -680,6 +682,8 @@ function waistDue() { const w = bodySeries('waist'); const last = w.length ? w[w
 const waistPill = () => { const d = waistDue(); if (!d.due) return '';
   return `<button data-act="nav" data-to="weighin" aria-label="ถึงวันวัดรอบเอว" style="border:none;background:#fff;border-radius:20px;padding:4px 12px 4px 4px;display:inline-flex;align-items:center;gap:6px;box-shadow:0 0 0 2px #1F1F1F inset"><span class="ic" style="width:28px;height:28px;border-radius:14px;background:#FFF3B0">${svgI('tape', 18)}</span><b style="font-size:13px">${d.first ? 'วัดรอบเอว' : 'ถึงวันวัดเอว'}</b>${chev('r', 12)}</button>`; };
 const flameChip = (n) => `<span role="img" aria-label="จดติดต่อกัน ${n} วัน" style="border:none;background:#fff;border-radius:20px;padding:4px 10px 4px 4px;display:inline-flex;align-items:center;gap:4px;box-shadow:0 4px 12px rgba(160,120,0,.18);margin-top:6px"><span class="ic" style="width:26px;height:26px;border-radius:13px;background:#FFE6E0">${svgI('flame', 18)}</span><b style="font-size:15px">${n}</b><span style="font-size:12px;font-weight:600">วัน</span></span>`;
+const shiftOn = (k) => !!(db.shifts && db.shifts[k]);
+const shiftChip = (k) => { const on = shiftOn(k); return `<button data-act="shiftToggle" data-d="${k}" aria-pressed="${on}" style="height:40px;border-radius:20px;${on ? 'border:none;background:#ECE9FC' : 'border:1.5px solid #E8E2D0;background:#fff'};flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;font-size:13px;font-weight:700;white-space:nowrap;padding:0 6px"><span class="ic" style="width:26px;height:26px;border-radius:13px;background:#fff"><svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4a8 8 0 1 0 5 13A6.5 6.5 0 0 1 15 4z" fill="#B9B1F0" stroke="#1F1F1F" stroke-width="1.5" stroke-linejoin="round"/></svg></span>เวรบ่าย${on ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>' : ''}</button>`; };
 
 function markDay(k, status) { db.dayStatus[k] = status; save(); S.sheet = null; render(); toast(status === 'special' ? 'บันทึกเป็นวันมื้อพิเศษแล้ว' : 'จดครบ ' + (k === todayKey() ? 'วันนี้' : thDate(k)) + ' แล้ว', null, 'yay'); }
 
@@ -1119,7 +1123,7 @@ function exRow() {
   const t = todayKey(); const on = exOn(t); const has = (ty) => on.some((w) => w.type === ty); const wm = on.filter((w) => w.type === 'walk').reduce((a, w) => a + (w.min || 0), 0);
   const otherN = on.filter((w) => w.type !== 'weight' && w.type !== 'walk').length;
   const btn = (act, ty, label, done) => `<button data-act="${act}" style="flex:1;height:40px;border-radius:20px;${done ? 'border:none;background:#FFE6D6' : 'border:1.5px solid #E8E2D0;background:#fff'};display:flex;align-items:center;justify-content:center;gap:5px;font-size:13px;font-weight:700;min-width:0;white-space:nowrap;padding:0 6px">${iconBox(exIcon(ty), 17, 26)}${label}${done ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>' : ''}</button>`;
-  return `<div class="row" style="gap:8px;margin-top:12px;border-top:1px solid #F2EEE6;padding-top:12px"><span style="font-size:13px;font-weight:700;white-space:nowrap">วันนี้ขยับ</span>
+  return `<div class="row" style="gap:8px;margin-top:12px;border-top:1px solid #F2EEE6;padding-top:12px"><span style="font-size:13px;font-weight:700;white-space:nowrap;min-width:62px">วันนี้ขยับ</span>
     ${btn('exWeight', 'weight', 'เวท', has('weight'))}${btn('exWalk', 'walk', wm ? 'เดิน ' + wm + "'" : 'เดินลู่', wm > 0)}
     <button data-act="exOther" aria-label="ออกกำลังอย่างอื่น" style="width:40px;height:40px;border-radius:20px;border:none;background:${otherN ? '#E7F4EA' : 'var(--g)'};display:flex;align-items:center;justify-content:center;flex-shrink:0">${otherN ? svgI('spa', 20) : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'}</button></div>`;
 }
@@ -1490,6 +1494,7 @@ const A = {
     window.open('https://claude.ai/new?q=' + encodeURIComponent(txt), '_blank'); },
   goalWStep: (el) => { S.sheet.v = Math.max(35, (S.sheet.v ?? (db.profile.goalWeight || 70)) + Number(el.dataset.d)); renderLayer(); },
   goalWSave: () => { db.profile.goalWeight = S.sheet.v ?? (db.profile.goalWeight || 70); save(); closeSheet(); render(); },
+  shiftToggle: (el) => { const d = el.dataset.d; db.shifts = db.shifts || {}; if (db.shifts[d]) delete db.shifts[d]; else db.shifts[d] = true; save(); render(); },
   breakStart: () => { db.dietBreak = { start: todayKey(), days: 7 }; save(); render(); toast('เริ่มพักเครื่อง · เป้า ' + fmt(goalOf()) + ' kcal', null, 'yay'); },
   breakStop: () => { if (db.dietBreak) db.dietBreak.end = addDays(todayKey(), -1); save(); render(); toast('กลับสู่เป้า ' + fmt(goalOf())); },
   flatGoalSet: (el) => { db.profile.flatGoal = Number(el.dataset.v); save(); render(); toast('เป้าใหม่ ' + fmt(goalOf()) + ' kcal'); },
