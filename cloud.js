@@ -48,7 +48,9 @@ const Cloud = {
       const since = addDays(k, -69); const hm = (iso) => { try { const x = new Date(iso); return String(x.getHours()).padStart(2, '0') + ':' + String(x.getMinutes()).padStart(2, '0'); } catch (e) { return null; } };
       const meals = db.entries.filter((e) => e.date >= since && e.date <= k).sort((a, b) => (a.date + (a.createdAt || '')).localeCompare(b.date + (b.createdAt || '')))
         .map((e) => ({ d: e.date, s: e.slot, t: e.createdAt ? hm(e.createdAt) : null, n: e.name, c: e.cat || null, q: e.qty, u: e.unitLabel || '', k: Math.round(e.k), p: Math.round(e.p), f: Math.round(e.f), est: e.src === 'est' }));
-      return { v: 2, days, body, meals };
+      const ex = (db.workouts || []).filter((w) => w.date >= since && w.date <= k).sort((a, b) => a.date.localeCompare(b.date))
+        .map((w) => ({ d: w.date, t: w.type, min: w.min || null, n: w.name || null }));
+      return { v: 3, days, body, meals, ex, exGoal: db.exGoal || null };
     } catch (e) { return null; }
   },
   queue() {
