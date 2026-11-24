@@ -51,7 +51,7 @@ const Cloud = {
       const ex = (db.workouts || []).filter((w) => w.date >= since && w.date <= k).sort((a, b) => a.date.localeCompare(b.date))
         .map((w) => ({ d: w.date, t: w.type, min: w.min || null, n: w.name || null }));
       const pf = db.profile || {};
-      const profile = { sex: pf.sex || null, birth: pf.birth || null, height: pf.height || null, startWeight: pf.startWeight || null, goalWeight: pf.goalWeight || null, startDate: pf.startDate || null, activity: pf.activity || pf.act || null };
+      const profile = { sex: pf.sex || null, height: pf.height || null, startWeight: pf.startWeight || null, goalWeight: pf.goalWeight || null, startDate: pf.startDate || null, activity: pf.activity || pf.act || null };
       let energy = null; try { energy = { bmr: Math.round(bmr(pf)), formula: Math.round(baseTDEE(pf)), real: typeof realTDEE === 'function' ? realTDEE() : null, age: ageOf(pf.birth) }; } catch (e) {}
       return { v: 5, days, body, meals, ex, exGoal: db.exGoal || null, profile, energy };
     } catch (e) { return null; }
