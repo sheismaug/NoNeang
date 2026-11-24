@@ -200,7 +200,7 @@ function vToday() {
           <div class="row">${fillTile('veg', Math.min(100, t.f / FIBER * 100), '#B7E0C2', '#F1F8F2')}<div><div style="font-size:13px;font-weight:700">Fiber <span class="mut" style="font-weight:500">${Math.round(t.f)}/${FIBER}</span></div><div class="small mut">${t.f >= FIBER ? 'ครบแล้ว ✓' : 'ขาด ' + Math.round(FIBER - t.f) + ' g'}</div></div></div>
         </div></div>
       ${exRow()}
-      <div class="row" style="gap:8px;margin-top:10px"><span style="font-size:13px;font-weight:700;white-space:nowrap;min-width:62px">วันนี้มีเวร</span>${shiftChip(k)}<span style="flex:1"></span><span style="width:40px;flex-shrink:0"></span></div></div>` + todayBody() + nav();
+      <div class="row" style="gap:8px;margin-top:10px"><span style="font-size:13px;font-weight:700;white-space:nowrap;min-width:62px">วันนี้มี</span><div style="flex:1;min-width:0">${shiftChip(k)}</div></div></div>` + todayBody() + nav();
 }
 
 function vSuggest() {
@@ -683,7 +683,10 @@ const waistPill = () => { const d = waistDue(); if (!d.due) return '';
   return `<button data-act="nav" data-to="weighin" aria-label="ถึงวันวัดรอบเอว" style="border:none;background:#fff;border-radius:20px;padding:4px 12px 4px 4px;display:inline-flex;align-items:center;gap:6px;box-shadow:0 0 0 2px #1F1F1F inset"><span class="ic" style="width:28px;height:28px;border-radius:14px;background:#FFF3B0">${svgI('tape', 18)}</span><b style="font-size:13px">${d.first ? 'วัดรอบเอว' : 'ถึงวันวัดเอว'}</b>${chev('r', 12)}</button>`; };
 const flameChip = (n) => `<span role="img" aria-label="จดติดต่อกัน ${n} วัน" style="border:none;background:#fff;border-radius:20px;padding:4px 10px 4px 4px;display:inline-flex;align-items:center;gap:4px;box-shadow:0 4px 12px rgba(160,120,0,.18);margin-top:6px"><span class="ic" style="width:26px;height:26px;border-radius:13px;background:#FFE6E0">${svgI('flame', 18)}</span><b style="font-size:15px">${n}</b><span style="font-size:12px;font-weight:600">วัน</span></span>`;
 const shiftOn = (k) => !!(db.shifts && db.shifts[k]);
-const shiftChip = (k) => { const on = shiftOn(k); return `<button data-act="shiftToggle" data-d="${k}" aria-pressed="${on}" style="height:40px;border-radius:20px;${on ? 'border:none;background:#ECE9FC' : 'border:1.5px solid #E8E2D0;background:#fff'};flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;font-size:13px;font-weight:700;white-space:nowrap;padding:0 6px"><span class="ic" style="width:26px;height:26px;border-radius:13px;background:#fff"><svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4a8 8 0 1 0 5 13A6.5 6.5 0 0 1 15 4z" fill="#B9B1F0" stroke="#1F1F1F" stroke-width="1.5" stroke-linejoin="round"/></svg></span>เวรบ่าย${on ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>' : ''}</button>`; };
+const flagOn = (k, f) => !!(db.dayFlags && db.dayFlags[k] && db.dayFlags[k][f]);
+const CHECK14 = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>';
+const dayPill = (act, k, f, on, ic, label, bg) => `<button data-act="${act}" data-d="${k}" data-f="${f}" aria-pressed="${on}" style="flex:1;min-width:0;height:40px;border-radius:20px;${on ? 'border:none;background:' + bg : 'border:1.5px solid #E8E2D0;background:#fff'};display:inline-flex;align-items:center;justify-content:center;gap:3px;font-size:12.5px;font-weight:700;white-space:nowrap;padding:0 3px">${ic}${label}</button>`;
+const shiftChip = (k) => `<div class="row" style="gap:6px">${dayPill('shiftToggle', k, 'shift', shiftOn(k), '<span class="ic" style="width:22px;height:22px;border-radius:11px;background:#fff"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4a8 8 0 1 0 5 13A6.5 6.5 0 0 1 15 4z" fill="#B9B1F0" stroke="#1F1F1F" stroke-width="1.5" stroke-linejoin="round"/></svg></span>', 'เวรบ่าย', '#ECE9FC')}${dayPill('flagToggle', k, 'hungry', flagOn(k, 'hungry'), iconBox('soup', 14, 22), 'หิวมาก', '#FFE6D6')}${dayPill('flagToggle', k, 'sweet', flagOn(k, 'sweet'), iconBox('icecream', 14, 22), 'อยากหวาน', '#FFE8F3')}</div>`;
 
 function markDay(k, status) { db.dayStatus[k] = status; save(); S.sheet = null; render(); toast(status === 'special' ? 'บันทึกเป็นวันมื้อพิเศษแล้ว' : 'จดครบ ' + (k === todayKey() ? 'วันนี้' : thDate(k)) + ' แล้ว', null, 'yay'); }
 
@@ -1494,6 +1497,7 @@ const A = {
     window.open('https://claude.ai/new?q=' + encodeURIComponent(txt), '_blank'); },
   goalWStep: (el) => { S.sheet.v = Math.max(35, (S.sheet.v ?? (db.profile.goalWeight || 70)) + Number(el.dataset.d)); renderLayer(); },
   goalWSave: () => { db.profile.goalWeight = S.sheet.v ?? (db.profile.goalWeight || 70); save(); closeSheet(); render(); },
+  flagToggle: (el) => { const d = el.dataset.d, f = el.dataset.f; db.dayFlags = db.dayFlags || {}; const o = db.dayFlags[d] || {}; if (o[f]) delete o[f]; else o[f] = 1; if (Object.keys(o).length) db.dayFlags[d] = o; else delete db.dayFlags[d]; save(); render(); },
   shiftToggle: (el) => { const d = el.dataset.d; db.shifts = db.shifts || {}; if (db.shifts[d]) delete db.shifts[d]; else db.shifts[d] = true; save(); render(); },
   breakStart: () => { db.dietBreak = { start: todayKey(), days: 7 }; save(); render(); toast('เริ่มพักเครื่อง · เป้า ' + fmt(goalOf()) + ' kcal', null, 'yay'); },
   breakStop: () => { if (db.dietBreak) db.dietBreak.end = addDays(todayKey(), -1); save(); render(); toast('กลับสู่เป้า ' + fmt(goalOf())); },

@@ -40,8 +40,8 @@ const Cloud = {
       const days = [];
       for (let i = 69; i >= 0; i--) {
         const d = addDays(k, -i); const t = totals(d); const st = db.dayStatus[d] || null;
-        if (!t.k && !st && !(db.shifts && db.shifts[d])) continue;
-        days.push({ d, k: Math.round(t.k), g: Math.round(goalOf(d)), ok: t.k > 0 && t.k <= okOf(d), p: Math.round(t.p), pT, f: Math.round(t.f), st, sh: (db.shifts && db.shifts[d]) ? 1 : 0 });
+        if (!t.k && !st && !(db.shifts && db.shifts[d]) && !(db.dayFlags && db.dayFlags[d])) continue;
+        days.push({ d, k: Math.round(t.k), g: Math.round(goalOf(d)), ok: t.k > 0 && t.k <= okOf(d), p: Math.round(t.p), pT, f: Math.round(t.f), st, sh: (db.shifts && db.shifts[d]) ? 1 : 0, hu: (db.dayFlags && db.dayFlags[d] && db.dayFlags[d].hungry) ? 1 : 0, sw: (db.dayFlags && db.dayFlags[d] && db.dayFlags[d].sweet) ? 1 : 0 });
       }
       const from = addDays(k, -120);
       const body = db.body.filter((b) => b.date >= from).sort((a, b) => a.date.localeCompare(b.date)).map((b) => ({ d: b.date, w: b.weight ?? null, ws: b.waist ?? null }));
@@ -53,7 +53,7 @@ const Cloud = {
       const pf = db.profile || {};
       const profile = { sex: pf.sex || null, height: pf.height || null, startWeight: pf.startWeight || null, goalWeight: pf.goalWeight || null, startDate: pf.startDate || null, activity: pf.activity || pf.act || null };
       let energy = null; try { energy = { bmr: Math.round(bmr(pf)), formula: Math.round(baseTDEE(pf)), real: typeof realTDEE === 'function' ? realTDEE() : null, age: ageOf(pf.birth) }; } catch (e) {}
-      return { v: 5, days, body, meals, ex, exGoal: db.exGoal || null, profile, energy };
+      return { v: 6, days, body, meals, ex, exGoal: db.exGoal || null, profile, energy };
     } catch (e) { return null; }
   },
   queue() {
