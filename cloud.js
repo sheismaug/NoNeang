@@ -40,8 +40,8 @@ const Cloud = {
       const days = [];
       for (let i = 69; i >= 0; i--) {
         const d = addDays(k, -i); const t = totals(d); const st = db.dayStatus[d] || null;
-        if (!t.k && !st && !(db.shifts && db.shifts[d])) continue;
-        days.push({ d, k: Math.round(t.k), g: Math.round(goalOf(d)), ok: t.k > 0 && t.k <= okOf(d), p: Math.round(t.p), pT, f: Math.round(t.f), st, sh: (db.shifts && db.shifts[d]) ? 1 : 0 });
+        if (!t.k && !st && !(db.shifts && db.shifts[d]) && !(db.dayFlags && db.dayFlags[d])) continue;
+        days.push({ d, k: Math.round(t.k), g: Math.round(goalOf(d)), ok: t.k > 0 && t.k <= okOf(d), p: Math.round(t.p), pT, f: Math.round(t.f), st, sh: (db.shifts && db.shifts[d]) ? 1 : 0, hu: (db.dayFlags && db.dayFlags[d] && db.dayFlags[d].hungry) ? 1 : 0, sw: (db.dayFlags && db.dayFlags[d] && db.dayFlags[d].sweet) ? 1 : 0 });
       }
       const from = addDays(k, -120);
       const body = db.body.filter((b) => b.date >= from).sort((a, b) => a.date.localeCompare(b.date)).map((b) => ({ d: b.date, w: b.weight ?? null, ws: b.waist ?? null }));
@@ -53,7 +53,8 @@ const Cloud = {
       const pf = db.profile || {};
       const profile = { sex: pf.sex || null, height: pf.height || null, startWeight: pf.startWeight || null, goalWeight: pf.goalWeight || null, startDate: pf.startDate || null, activity: pf.activity || pf.act || null };
       let energy = null; try { energy = { bmr: Math.round(bmr(pf)), formula: Math.round(baseTDEE(pf)), real: typeof realTDEE === 'function' ? realTDEE() : null, age: ageOf(pf.birth) }; } catch (e) {}
-      return { v: 5, days, body, meals, ex, exGoal: db.exGoal || null, profile, energy };
+      let cycle = null; try { cycle = { periods: periodSpans().filter((x) => x.start >= from).map((x) => ({ s: x.start, e: x.end })), next: periodNext() }; } catch (e) {}
+      return { v: 7, days, body, meals, ex, exGoal: db.exGoal || null, profile, energy, cycle };
     } catch (e) { return null; }
   },
   queue() {
@@ -85,8 +86,15 @@ const Cloud = {
       else if (!lAt || rAt > lAt) this.adopt(remote);
       else if (lAt > rAt) await this.push();
       this.lastSync = new Date(); this.state = 'ok';
+      this.pullCoach();
     } catch (e) { this.state = navigator.onLine === false ? 'offline' : 'error'; this.err = e && e.message; }
     this.refreshUi();
+  },
+  async pullCoach() {
+    try { const { data, error } = await this.sb.from('noneang_coach').select('plan, updated_at').eq('user_id', this.user.id).maybeSingle();
+      if (error || !data || !data.plan) return; const old = JSON.stringify(COACH); COACH = data.plan;
+      try { localStorage.setItem('noneang.coach', JSON.stringify(COACH)); } catch (e) {}
+      if (old !== JSON.stringify(COACH) && typeof S !== 'undefined' && S.view === 'today') render(); } catch (e) {}
   },
   adopt(remote) {
     db = remote; db.rewards = db.rewards || []; db.seenRecap = db.seenRecap || {};
