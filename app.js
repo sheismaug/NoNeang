@@ -28,6 +28,7 @@ const pencil = (c = '#5E5E5E') => `<svg width="15" height="15" viewBox="0 0 24 2
 
 /* ================= storage adapter ================= */
 const KEY = 'noneang.v1';
+let COACH = (() => { try { return JSON.parse(localStorage.getItem('noneang.coach')); } catch (e) { return null; } })();
 const Store = {
   load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } },
   save(d) { d.updatedAt = new Date().toISOString(); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { toast('บันทึกลงเครื่องไม่ได้ (พื้นที่เต็มหรือโหมดส่วนตัว)'); } if ((typeof Cloud !== 'undefined')) Cloud.queue(); }
@@ -47,7 +48,7 @@ const activeOf = (k) => db.activity[k] || 0;
 const watchCredit = (k) => Math.round(activeOf(k) * db.profile.watchPct);
 const BREAK_ADD = 350;
 const breakOn = (k) => { const b = db.dietBreak; if (!b) return null; const d = k || todayKey(); const end = b.end || addDays(b.start, (b.days || 7) - 1); return d >= b.start && d <= end ? { ...b, end, day: daysBetween(b.start, d) + 1 } : null; };
-const goalOf = (k) => (db.profile.flatGoal || 1500) + (breakOn(k) ? BREAK_ADD : 0);
+const goalOf = (k) => { const c = COACH && COACH.days && COACH.days[k]; const base = c && c.g ? c.g : (db.profile.flatGoal || 1500) + (c ? 0 : (shiftOn(k) && COACH && COACH.week === mondayOf(k) ? 200 : 0)); return base + (breakOn(k) ? BREAK_ADD : 0); };
 const okOf = (k) => goalOf(k) + 100;
 const protPerKg = () => db.profile.protPerKg ?? 1.6;
 const proteinTarget = () => Math.round(protPerKg() * calcW(db.profile));
@@ -200,7 +201,7 @@ function vToday() {
           <div class="row">${fillTile('veg', Math.min(100, t.f / FIBER * 100), '#B7E0C2', '#F1F8F2')}<div><div style="font-size:13px;font-weight:700">Fiber <span class="mut" style="font-weight:500">${Math.round(t.f)}/${FIBER}</span></div><div class="small mut">${t.f >= FIBER ? 'ครบแล้ว ✓' : 'ขาด ' + Math.round(FIBER - t.f) + ' g'}</div></div></div>
         </div></div>
       ${exRow()}
-      <div class="row" style="gap:8px;margin-top:10px"><span style="font-size:13px;font-weight:700;white-space:nowrap;min-width:62px">วันนี้มี</span><div style="flex:1;min-width:0">${shiftChip(k)}</div></div>${rescueLink(k)}</div>` + todayBody() + nav();
+      <div class="row" style="gap:8px;margin-top:10px"><span style="font-size:13px;font-weight:700;white-space:nowrap;min-width:62px">วันนี้มี</span><div style="flex:1;min-width:0">${shiftChip(k)}</div></div>${rescueLink(k)}</div>` + coachCheckCard() + coachShiftCard() + coachWeekRow() + todayBody() + nav();
 }
 
 function vSuggest() {
@@ -482,7 +483,8 @@ function sheetHtml() {
   if (s.type === 'celebrate') return celebrateHtml(s);
   const wrap = (inner, center = false) => `<div class="overlay ${center ? 'center' : ''}" data-act="overlay"><div class="${center ? 'modal' : 'sheet'}" role="dialog" aria-modal="true" data-stop="1">${center ? '' : '<span class="handle"></span>'}${inner}</div></div>`;
   const closeBtn = '<button class="back" data-act="close" aria-label="ปิด" style="width:40px;height:40px">' + xIcon + '</button>';
-  if (s.type === 'rescue') return rescueSheet(s, wrap, closeBtn);
+  if (s.type === 'rescue') return coachSheet(s, wrap, closeBtn);
+  if (s.type === 'coachWeek') return COACH ? coachWeekSheet(wrap, closeBtn) : '';
   if (s.type === 'cloud') return wrap(cloudSheet(s, closeBtn));
   if (s.type === 'widget') return wrap(widgetSheet(closeBtn));
   if (s.type === 'cloudPick') return wrap(`<div class="row"><b style="flex:1;font-size:19px">มีข้อมูล 2 ชุด ใช้ชุดไหน?</b></div>
@@ -677,7 +679,7 @@ function rescueFoods() {
 }
 function rescueCtx() {
   const k = todayKey(); const t = totals(k); const rem = Math.round(goalOf(k) - t.k);
-  const now = new Date(); const h = now.getHours() + now.getMinutes() / 60; const shift = shiftOn(k);
+  const now = new Date(); const h = now.getHours() + now.getMinutes() / 60; const shift = !!shiftType(k) && shiftType(k) !== 'เช้า';
   const bed = shift ? 25 : 23; const hrs = Math.max(0, bed - h);
   let bank = 0; for (let d = mondayOf(k); d < k; d = addDays(d, 1)) { const td = totals(d); if (td.k > 0) bank += goalOf(d) - td.k; }
   const pn = periodNow(); const nx = periodNext(); const dn = nx ? daysBetween(k, nx) : null;
@@ -688,54 +690,143 @@ const rFood = (it, tag = '') => `<div class="row" style="padding:9px 10px;border
 const rStep = (n, ic, title, body, inner = '') => `<div style="background:#fff;border:1.5px solid #F2EEE6;border-radius:20px;padding:12px 14px;display:flex;flex-direction:column;gap:8px"><div class="row" style="gap:10px;align-items:flex-start"><span class="ic" style="width:26px;height:26px;border-radius:13px;background:#FFD000;font-size:13px;font-weight:700;flex-shrink:0">${n}</span><span style="flex:1;min-width:0"><b style="font-size:15px;display:block;line-height:1.4">${title}</b><span class="small mut" style="line-height:1.55;display:block">${body}</span></span>${ic ? iconBox(ic, 18, 32) : ''}</div>${inner ? '<div style="border-radius:14px;border:1px solid #F2EEE6;overflow:hidden">' + inner + '</div>' : ''}</div>`;
 function pickFit(list, budget, max = 3) { const out = []; let left = budget;
   for (const it of list) { if (out.length >= max) break; if (it.k <= left && !out.some((o) => o.name === it.name)) { out.push(it); left -= it.k; } } return out; }
-function rescuePlan(mode) {
-  const c = rescueCtx(); const foods = rescueFoods(); const rem = Math.max(0, c.rem); const steps = []; let head, sub, mood;
-  const late = c.h >= 20 || c.hrs <= 2.5; const hl = c.hrs >= 1 ? 'อีกราว ' + Math.round(c.hrs) + ' ชม. ถึงเวลานอน' + (c.shift ? ' (วันเวร)' : '') : 'ใกล้เวลานอนแล้ว';
-  const tight = rem <= 80; const extra = c.bank >= 150 ? Math.min(200, Math.round(c.bank / 2 / 10) * 10) : 0;
-  if (mode === 'hungry') {
-    mood = 'calm'; head = 'หิวมาก ไม่เป็นไรนะ';
-    sub = (c.rem > 0 ? 'เหลือ ' + fmt(rem) + ' kcal' : 'วันนี้ครบงบแล้ว') + ' · ' + hl;
-    steps.push(['drink', 'ดื่มน้ำ 1–2 แก้ว หรือชา/กาแฟดำร้อน ก่อน', 'บางทีร่างกายสับสนกระหายน้ำกับหิว ของร้อนช่วยให้ท้องอิ่มขึ้นเร็ว และไม่มีแคลเลย']);
-    const fillers = foods.filter((f) => !f.treat).sort((a, b) => b.fill - a.fill);
-    if (!tight) {
-      const nowB = !late && c.hrs > 3 && rem > 250 ? Math.round(rem * 0.6) : rem;
-      const prot = fillers.filter((f) => f.p >= 6 && !f.veg); const vegs = fillers.filter((f) => f.veg).sort((a, b) => a.k - b.k);
-      const order = c.Pg > 10 ? [...prot.filter((f) => f.k <= nowB - (vegs[0] ? vegs[0].k : 0)).slice(0, 1), ...vegs, ...prot, ...fillers] : [...vegs, ...prot, ...fillers];
-      const now = pickFit(order, nowB, nowB >= 150 ? 2 : 1); const used = now.reduce((a, b) => a + b.k, 0);
-      const later = !late && nowB < rem ? pickFit(fillers.filter((f) => !now.includes(f)), rem - used, 1) : [];
-      const bodyTxt = now.length ? 'เลือกของที่อิ่มนานจากที่ชีสกินบ่อย (โปรตีน · ไฟเบอร์ · ผัก) ' + (nowB < rem ? 'ใช้ราว ' + fmt(nowB) + ' kcal ก่อน' : 'ในงบ ' + fmt(rem) + ' kcal') : 'ผักต้ม/ต้มจืดผัก 1 ถ้วย (~40 kcal) หรือไข่ต้ม 1 ฟอง (~75 kcal) อิ่มเยอะแต่แคลน้อย';
-      steps.push(['veg', 'กินของอิ่มนานก่อน', bodyTxt + (c.Pg > 15 ? ' · โปรตีนยังขาด ' + Math.round(c.Pg) + ' g ด้วย' : ''), now.map((i) => rFood(i)).join('')]);
-      if (later.length) steps.push(['main', 'เก็บไว้หน่อยสำหรับทีหลัง', 'ถ้ายังหิวก่อนนอน ยังมีที่ให้อันนี้อีก ไม่ต้องกลัวว่าจะหิวจนทนไม่ไหว', later.map((i) => rFood(i)).join('')]);
-    } else {
-      const free = fillers.filter((f) => f.k <= 80 && (f.veg || f.p >= 5)).slice(0, 2);
-      steps.push(['veg', 'ถ้ายังหิวจริง เลือกของแคลต่ำมาก', 'ผักต้ม ต้มจืดผัก หรือซุปใส อิ่มท้องโดยแทบไม่เพิ่มแคล' + (free.length ? ' หรือของที่ชีสกินบ่อยด้านล่าง' : ''), free.map((i) => rFood(i)).join('')]);
-      if (extra) steps.push(['flame', 'สัปดาห์นี้ชีสเก็บแต้มไว้ ' + fmt(c.bank) + ' kcal', 'ถ้าหิวจนนอนไม่หลับ กินเพิ่มได้อีกราว ' + fmt(extra) + ' kcal โดยรวมทั้งสัปดาห์ยังอยู่ในงบ เลือกโปรตีนก่อนนะ']);
-    }
-    steps.push(['watch', 'กินช้าๆ แล้วรอ 20 นาที', late ? 'สัญญาณอิ่มใช้เวลาเดินทางถึงสมอง ถ้ารอแล้วยังหิว ค่อยดูอีกที ใกล้นอนแล้วการแปรงฟันช่วยปิดครัวได้ดี' : 'สัญญาณอิ่มใช้เวลาเดินทางถึงสมอง ถ้ารอแล้วยังหิว ค่อยกินส่วนที่เก็บไว้']);
-  } else {
-    mood = 'wave'; head = 'อยากหวาน มีทางไปต่อแน่นอน';
-    sub = (c.rem > 0 ? 'เหลือ ' + fmt(rem) + ' kcal' : 'วันนี้ครบงบแล้ว') + ' · ' + hl;
-    steps.push(['watch', 'รอ 10–15 นาที กับน้ำเย็นสักแก้ว', 'ความอยากหวานมาเป็นคลื่น ส่วนใหญ่จะเบาลงเองถ้ารอสักพัก ลุกไปทำอย่างอื่น หรือแปรงฟันก็ช่วยได้']);
-    const sw = foods.filter((f) => f.sweet && !f.treat).sort((a, b) => a.k - b.k || b.n - a.n);
-    const swFit = pickFit(sw, Math.max(rem, tight ? 120 : rem), 3);
-    steps.push([swFit[0] ? swFit[0].icon : 'apple', 'ถ้ายังอยาก เลือกหวานเบาๆ ที่ชีสชอบ', swFit.length ? 'จากของหวานที่ชีสจดบ่อย เรียงจากแคลน้อยไปมาก' + (tight ? ' (วันนี้งบเกือบหมด เลือกอันแรกๆ)' : '') : 'ผลไม้ 1 ส่วน เช่น ฝรั่งหรือแอปเปิ้ล (~60–70 kcal) หรือนมจืด/โยเกิร์ตไม่หวาน หวานพอดีและมีไฟเบอร์หรือโปรตีนช่วย', swFit.map((i) => rFood(i)).join('')]);
-    const tr = foods.filter((f) => f.treat).sort((a, b) => b.n - a.n)[0];
-    const room = rem + extra;
-    if (room >= 180) steps.push([tr ? tr.icon : 'cake', 'หรือถ้าอยากของหวานจริงๆ กินได้ 1 อย่าง', 'แบ่งเป็นชิ้นเล็ก ไม่เกินราว ' + fmt(Math.min(250, Math.round(room * 0.6 / 10) * 10)) + ' kcal ใส่จานแล้วนั่งกินช้าๆ ให้รู้สึกถึงรสชาติ' + (tr ? ' เช่น ' + esc(tr.name) + ' ครึ่งส่วน' : '') + (rem < 180 && extra ? ' (ใช้แต้มที่เก็บไว้ในสัปดาห์นี้)' : '')]);
-    else if (extra) steps.push(['flame', 'สัปดาห์นี้ชีสเก็บแต้มไว้ ' + fmt(c.bank) + ' kcal', 'ถ้าอยากมากจริงๆ หวานเล็กๆ อีก ' + fmt(extra) + ' kcal ทั้งสัปดาห์ก็ยังอยู่ในงบ']);
-    if (late) steps.push(['watch', 'ใกล้นอนแล้ว นอนเร็วขึ้นอีกนิดช่วยได้มาก', 'นอนน้อยหรือดึก ทำให้อยากหวานมากขึ้นในวันถัดไป แปรงฟันแล้วปิดครัวคืนนี้']);
-  }
-  let note = null;
-  if (c.phase === 'pms') note = (mode === 'hungry' ? 'อีก ' + c.dn + ' วันน่าจะเป็นเมนส์ ช่วงนี้ร่างกายใช้พลังงานเพิ่มขึ้นเล็กน้อย เลยหิวง่ายกว่าปกติ' : 'อีก ' + c.dn + ' วันน่าจะเป็นเมนส์ ช่วงนี้ฮอร์โมนทำให้อยากหวานมากกว่าปกติ');
-  if (c.phase === 'period') note = 'ช่วงเมนส์ ร่างกายเหนื่อยกว่าปกติ ' + (mode === 'hungry' ? 'ของอุ่นๆ อย่างซุปหรือต้มจืดช่วยให้สบายท้อง' : 'ช็อกโกแลตเข้มชิ้นเล็กๆ หรือโกโก้ร้อนไม่หวาน ก็ช่วยได้') + ' ไม่ต้องกดดันตัวเองนะ';
-  return { c, steps, head, sub, mood, note };
+/* ================= coach: diagnose → decide → follow up · weekly plan from Claude ================= */
+const SHIFT_T = { 'เช้า': { from: 8.5, to: 16.5, label: 'เวรเช้า' }, 'บ่าย': { from: 16.5, to: 24.5, label: 'เวรบ่าย' }, 'ช/บ': { from: 8.5, to: 24.5, label: 'เวร ช/บ' } };
+const coachDay = (k) => (COACH && COACH.days && COACH.days[k]) || null;
+const shiftType = (k) => { const c = coachDay(k); if (c && c.shift) return c.shift; return shiftOn(k) ? 'บ่าย' : null; };
+const hrOf = (iso) => { const d = new Date(iso); return d.getHours() + d.getMinutes() / 60; };
+const hm = (h) => { const hh = Math.floor(h) % 24, mm = Math.round((h % 1) * 60); return String(hh).padStart(2, '0') + ':' + String(mm === 60 ? 0 : mm).padStart(2, '0'); };
+const avoidFood = (n) => ((COACH && COACH.avoid) || []).some((a) => n.includes(a));
+/* why is this day hard? checked on today and on her past หิวมาก / อยากหวาน days */
+function dayFactors(k, uptoH = 24) {
+  const es = entriesOn(k).filter((e) => e.createdAt).map((e) => ({ h: hrOf(e.createdAt), e })).filter((x) => x.h <= uptoH).sort((a, b) => a.h - b.h);
+  let gap = 0, gapFrom = null; for (let i = 1; i < es.length; i++) { const g = es[i].h - es[i - 1].h; if (es[i - 1].h >= 10 && g > gap) { gap = g; gapFrom = es[i - 1].h; } }
+  const pAft = es.filter((x) => x.h < 15).reduce((a, x) => a + x.e.p, 0);
+  const y = addDays(k, -1); const ty = totals(y); const lut = lutealDays();
+  return { es, gap, gapFrom, lowP: pAft < proteinTarget() * 0.35, shift: shiftType(k), pms: lut.has(k), under: ty.k > 0 && ty.k < goalOf(y) - 300 };
 }
-function rescueSheet(s, wrap, closeBtn) {
-  const r = rescuePlan(s.mode); const bg = s.mode === 'hungry' ? '#FFE6D6' : '#FFE8F3';
-  return wrap(`<div class="row" style="gap:12px;align-items:center"><span class="ic" style="width:60px;height:60px;border-radius:30px;background:${bg};flex-shrink:0">${mascot(r.mood, 52)}</span><span style="flex:1;min-width:0"><b style="font-size:18px;display:block;line-height:1.35">${r.head}</b><span class="small mut">${r.sub}</span></span>${closeBtn}</div>
-    ${r.note ? `<div class="row" style="gap:10px;background:#FFF5F8;border-radius:16px;padding:10px 12px;align-items:flex-start"><span class="ic" style="width:24px;height:24px;border-radius:12px;background:#FFD6E5;flex-shrink:0"><svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c3 5 6 8 6 12a6 6 0 0 1-12 0c0-4 3-7 6-12z" fill="#F06A99"/></svg></span><span class="small" style="line-height:1.55;color:#5A3A45">${r.note}</span></div>` : ''}
-    <div style="display:flex;flex-direction:column;gap:10px;overflow:auto;min-height:0">${r.steps.map((x, i) => rStep(i + 1, x[0], x[1], x[2], x[3])).join('')}</div>
-    <button class="btn" data-act="close">โอเค ไปต่อได้</button><button class="link" data-act="rescueAsk" data-m="${s.mode}">อยากคุยกับ Claude ต่อ ›</button>`);
+function coachPattern(mode) {
+  const f = mode === 'hungry' ? 'hungry' : 'sweet'; const t = todayKey();
+  const days = Object.keys(db.dayFlags || {}).filter((d) => d < t && d >= addDays(t, -60) && db.dayFlags[d][f]);
+  if (days.length < 2) return null; const fs = days.map((d) => dayFactors(d));
+  const c = { gap: fs.filter((x) => x.gap >= 5).length, lowP: fs.filter((x) => x.lowP).length, shift: fs.filter((x) => x.shift).length, pms: fs.filter((x) => x.pms).length, under: fs.filter((x) => x.under).length };
+  const best = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; if (best[1] < 2 || best[1] / days.length < 0.5) return null;
+  const txt = { gap: 'มีช่วงไม่ได้กินนานเกิน 5 ชม.', lowP: 'ช่วงก่อนบ่ายสามได้โปรตีนน้อย', shift: 'เป็นวันมีเวร', pms: 'อยู่ช่วงก่อนเมนส์', under: 'เมื่อวานกินน้อยกว่างบมาก' }[best[0]];
+  return { key: best[0], n: best[1], of: days.length, txt };
+}
+function coachRead(mode) {
+  const c = rescueCtx(); const f = dayFactors(c.k, c.h); const last = f.es.length ? f.es[f.es.length - 1].h : null;
+  const since = last != null ? c.h - last : null; const why = []; let lead = null;
+  if (since != null && since >= 4.5) { why.push(`ตั้งแต่ ${hm(last)} ชีส<b class="hl">ไม่ได้กินอะไรเลย ${Math.floor(since)} ชม.</b> ร่างกายเลยทวงคืนตอนนี้`); lead = 'ช่วงหลัง ' + hm(last) + ' ไม่ได้กินอะไรเลย'; }
+  else if (f.gap >= 5) { why.push(`วันนี้มีช่วงเว้นยาว <b class="hl">${Math.round(f.gap)} ชม.</b> หลัง ${hm(f.gapFrom)}`); lead = 'มีช่วงเว้นมื้อยาว ' + Math.round(f.gap) + ' ชม.'; }
+  if (c.t.p < proteinTarget() * 0.5 && c.h >= 16) { why.push(`โปรตีนวันนี้ยังได้แค่ ${Math.round(c.t.p)} g จาก ${proteinTarget()} โปรตีนน้อยทำให้หิวเร็ว`); lead = lead || 'โปรตีนวันนี้ยังน้อย'; }
+  if (mode === 'sweet' && c.rem > 500 && c.h >= 18) { why.push(`วันนี้กินไปแค่ ${fmt(c.t.k)} kcal ร่างกายที่ได้พลังงานน้อยจะอยากของหวานเพื่อเติมเร็วๆ`); lead = lead || 'วันนี้กินน้อยไปหน่อย'; }
+  const pat = coachPattern(mode); if (pat) why.push(`${pat.n} ใน ${pat.of} ครั้งที่ผ่านมาที่กด${mode === 'hungry' ? 'หิวมาก' : 'อยากหวาน'} <b>${pat.txt}</b> เหมือนกัน`);
+  if (f.under) why.push('เมื่อวานกินน้อยกว่างบค่อนข้างเยอะ วันนี้เลยหิวง่ายขึ้น');
+  const st = shiftType(c.k); if (st) why.push(`วันนี้มี${SHIFT_T[st] ? SHIFT_T[st].label : 'เวร'} เวลากินเลยไม่ปกติ`);
+  if (c.phase === 'pms') why.push(`อีก ${c.dn} วันน่าจะเป็นเมนส์ ช่วงนี้${mode === 'hungry' ? 'หิวง่าย' : 'อยากหวาน'}กว่าปกติ`);
+  if (c.phase === 'period') why.push('อยู่ช่วงเมนส์ ร่างกายเหนื่อยและต้องการพลังงานมากกว่าปกติ');
+  return { c, f, why: why.slice(0, 3), lead, last };
+}
+function coachTimeline(r) {
+  const pts = r.f.es.map((x) => x.h); const now = r.c.h; if (!pts.length) return '';
+  const a = Math.min(6, Math.floor(pts[0])), b = Math.max(now, pts[pts.length - 1]) + 0.3; const X = (h) => ((h - a) / (b - a) * 100).toFixed(1);
+  const all = [...pts, now]; let gi = -1, gv = 0; for (let i = 1; i < all.length; i++) if (all[i] - all[i - 1] > gv) { gv = all[i] - all[i - 1]; gi = i; }
+  const merged = []; pts.filter((h) => now - h > 0.6).forEach((h) => { if (!merged.length || h - merged[merged.length - 1] > 0.75) merged.push(h); });
+  const gap = gv >= 4 ? `<div style="position:absolute;left:${X(all[gi - 1])}%;width:${(X(all[gi]) - X(all[gi - 1])).toFixed(1)}%;top:16px;height:14px;border-radius:7px;background:repeating-linear-gradient(45deg,#FFE6D6 0 6px,#FFD3B8 6px 12px)"></div><span style="position:absolute;left:${((+X(all[gi - 1]) + +X(all[gi])) / 2).toFixed(1)}%;top:-4px;transform:translateX(-50%);font-size:11px;font-weight:700;color:#C2552E;white-space:nowrap">ไม่ได้กิน ${Math.floor(gv)} ชม.</span>` : '';
+  const dot = (h, now) => `<div style="position:absolute;left:${X(h)}%;top:0;transform:translateX(-50%);text-align:center"><span style="display:block;width:14px;height:14px;margin:16px auto 0;border-radius:7px;background:${now ? '#FF7A59' : '#1F1F1F'};border:2px solid #fff"></span><span style="font-size:11px;font-weight:700;white-space:nowrap">${now ? 'ตอนนี้' : hm(h)}</span></div>`;
+  return `<div style="position:relative;height:50px;margin:8px 14px 0"><div style="position:absolute;left:0;right:0;top:20px;height:6px;border-radius:3px;background:#F2EEE6"></div>${gap}${merged.map((h) => dot(h)).join('')}${dot(now, true)}</div>`;
+}
+function coachPlan(mode, alt = 0) {
+  const r = coachRead(mode); const c = r.c; const rem = Math.max(0, c.rem); const foods = rescueFoods().filter((f) => !avoidFood(f.name));
+  const late = c.h >= 20 || c.hrs <= 2.5; const extra = c.bank >= 150 ? Math.min(200, Math.round(c.bank / 2 / 10) * 10) : 0;
+  const rot = (arr) => arr.length ? [...arr.slice(alt % arr.length), ...arr.slice(0, alt % arr.length)] : arr;
+  const P = { now: [], later: [], laterAt: null, why: '', bank: null, wait: null };
+  if (mode === 'hungry') {
+    const fillers = foods.filter((f) => !f.treat).sort((a, b) => b.fill - a.fill);
+    const prot = rot(fillers.filter((f) => f.p >= 6 && !f.veg)); const vegs = rot(fillers.filter((f) => f.veg).sort((a, b) => a.k - b.k));
+    if (rem > 80) {
+      const nowB = !late && c.hrs > 3 && rem > 250 ? Math.round(rem * 0.6) : Math.max(0, rem - (rem > 200 ? 90 : 0));
+      const order = c.Pg > 10 ? [...prot.filter((f) => f.k <= nowB - (vegs[0] ? vegs[0].k : 0)).slice(0, 1), ...vegs, ...prot] : [...vegs, ...prot];
+      P.now = pickFit(order, nowB, 2); const used = P.now.reduce((a, b) => a + b.k, 0);
+      P.later = pickFit(fillers.filter((f) => !P.now.includes(f)).sort((a, b) => (b.p >= 5) - (a.p >= 5) || a.k - b.k), rem - used, 1);
+      P.laterAt = late ? Math.min(c.h + 1.25, (c.shift ? 24.5 : 22.5)) : c.h + 2.5;
+      P.why = `โปรตีนกับผักอิ่มนานที่สุดต่อแคล${P.later.length ? ' และเก็บอีกอย่างไว้ทีหลัง ชีสจะ<b class="hl">ไม่ต้องเข้านอนทั้งที่หิว</b>' : ''}`;
+    } else {
+      P.now = pickFit(vegs.filter((f) => f.k <= 80), 120, 1);
+      P.why = 'งบวันนี้ใกล้หมดแล้ว ผักลวกหรือต้มจืดอิ่มท้องโดยแทบไม่เพิ่มแคล';
+      if (extra) P.bank = { have: c.bank, use: extra, items: pickFit(prot.filter((f) => f.k <= extra), extra, 1) };
+    }
+  } else {
+    P.wait = 12;
+    const sw = rot(foods.filter((f) => f.sweet && !f.treat).sort((a, b) => a.k - b.k || b.n - a.n));
+    P.now = pickFit(sw, Math.max(rem, 120), 1);
+    const tr = foods.filter((f) => f.treat).sort((a, b) => b.n - a.n)[0]; const room = rem - (P.now[0] ? P.now[0].k : 0) + (rem < 250 ? extra : 0);
+    if (room >= 150) P.treat = { cap: Math.min(250, Math.round(room * 0.7 / 10) * 10), name: tr ? tr.name : null, icon: tr ? tr.icon : 'cake', bank: rem < 250 && extra > 0 };
+    P.why = P.now.length ? 'หวานจากผลไม้หรือนม ได้ไฟเบอร์หรือโปรตีนช่วยให้ความอยากจบเร็ว' : 'เลือกหวานที่มีไฟเบอร์หรือโปรตีน เช่น ฝรั่ง แอปเปิ้ล นมจืด';
+  }
+  P.tip = (COACH && COACH.rescue && COACH.rescue[mode]) || null;
+  return { r, P, rem, late };
+}
+const hlCss = '<style>.hl{background:linear-gradient(transparent 60%,#FFE066 60%);padding:0 2px}</style>';
+const coachSay = (m, txt, bg = '#FFF6CF') => `<div class="row" style="gap:10px;align-items:flex-end"><span class="ic" style="width:44px;height:44px;border-radius:22px;background:${bg};flex-shrink:0">${mascot(m, 38)}</span><div style="background:${bg};border-radius:20px 20px 20px 6px;padding:11px 14px;font-size:14.5px;line-height:1.6;flex:1">${txt}</div></div>`;
+const cBox = (inner, bd = '1.5px solid #F2EEE6', bg = '#fff') => `<div style="background:${bg};border:${bd};border-radius:22px;padding:14px;display:flex;flex-direction:column;gap:8px">${inner}</div>`;
+const cSec = (t) => `<span style="font-size:12px;font-weight:700;color:#8A8A85">${t}</span>`;
+const cFood = (it, sub) => `<div class="row" style="gap:10px;padding:6px 0">${iconBox(it.icon, 20, 38)}<span style="flex:1;min-width:0"><b style="font-size:14px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</b><span class="small mut">${sub != null ? sub : esc(it.unit) + (it.p >= 5 ? ' · P ' + it.p + ' g' : '')}</span></span><b style="font-size:14px">${fmt(it.k)}</b></div>`;
+function coachSheet(s, wrap, closeBtn) {
+  const { r, P, rem } = coachPlan(s.mode, s.alt || 0); const hungry = s.mode === 'hungry'; const bg = hungry ? '#FFE6D6' : '#FFE8F3';
+  const intro = r.lead ? `ชีส วันนี้${hungry ? 'หิว' : 'อยากหวาน'}เพราะ<b class="hl">${r.lead}</b> มาดูกันว่าจะไปต่อยังไง` : `ชีส ${hungry ? 'หิวมาก' : 'อยากหวาน'}ตอนนี้ เหลือ ${fmt(rem)} kcal มาวางแผนกัน`;
+  const water = { icon: 'drink', name: hungry ? 'น้ำอุ่น 1 แก้วก่อน' : 'น้ำเย็น 1 แก้ว แล้วรอ ' + P.wait + ' นาที', unit: hungry ? 'ระหว่างเตรียมของ' : 'ความอยากหวานมักเบาลงเองถ้ารอ', k: 0, p: 0 };
+  const sumK = P.now.reduce((a, b) => a + b.k, 0) + P.later.reduce((a, b) => a + b.k, 0);
+  const fits = sumK <= rem;
+  const plan = `<div class="row"><span style="flex:1">${cSec((hungry ? 'แผนตอนนี้' : 'แผนรับมือ') + ' · เหลือ ' + fmt(rem) + ' kcal')}</span>${P.now.length && fits ? '<span class="badge" style="background:#E7F4EA;color:#2F6B43">อยู่ในงบ</span>' : ''}</div>
+    <div style="display:flex;gap:10px"><div style="width:3px;border-radius:2px;background:#FFD000"></div><div style="flex:1;min-width:0">
+    <span style="font-size:12px;font-weight:700">${hungry ? 'ตอนนี้' : 'ก่อนอื่น'}</span>${cFood(water, esc(water.unit))}
+    ${!hungry && P.now.length ? '<span style="font-size:12px;font-weight:700;display:block;margin-top:4px">ถ้ายังอยาก</span>' : ''}${P.now.map((i) => cFood(i)).join('')}
+    ${P.later.length ? `<span style="font-size:12px;font-weight:700;display:block;margin-top:4px">ประมาณ ${hm(P.laterAt)} ถ้ายังหิว</span>` + P.later.map((i) => cFood(i)).join('') : ''}
+    ${P.treat ? `<span style="font-size:12px;font-weight:700;display:block;margin-top:4px">หรือถ้าอยากของหวานจริงๆ</span>${cFood({ icon: P.treat.icon, name: P.treat.name ? P.treat.name + ' แบ่งครึ่ง' : 'ของหวาน 1 อย่าง ชิ้นเล็ก', unit: '', k: 0, p: 0 }, 'ใส่จาน นั่งกินช้าๆ' + (P.treat.bank ? ' · ใช้แต้มสัปดาห์' : '')).replace('<b style="font-size:14px">0</b>', '<b style="font-size:14px">≤' + fmt(P.treat.cap) + '</b>')}` : ''}
+    </div></div>
+    <div class="small" style="background:#FFFBEB;border-radius:14px;padding:9px 12px;line-height:1.55">ทำไมแบบนี้: ${P.why}</div>`;
+  const bank = P.bank ? cBox(`${cSec('ถ้ายังไม่ไหวจริงๆ')}<span style="font-size:14px;line-height:1.6">สัปดาห์นี้ชีสกินต่ำกว่างบมา ${fmt(P.bank.have)} kcal ใช้ได้อีก <b class="hl">${fmt(P.bank.use)} kcal</b> ทั้งสัปดาห์ยังอยู่ในงบ</span>${P.bank.items.map((i) => cFood(i)).join('')}`) : '';
+  const can = P.now.length || P.later.length;
+  return wrap(`${hlCss}<div class="row" style="justify-content:flex-end;margin-bottom:-8px">${closeBtn}</div>
+    ${coachSay(hungry ? 'calm' : 'wave', intro, bg)}
+    ${r.why.length ? cBox(`${cSec(hungry ? 'ทำไมถึงหิว' : 'ทำไมถึงอยากหวาน')}${coachTimeline(r)}<div style="font-size:14px;line-height:1.65">${r.why.map((w) => '• ' + w).join('<br>')}</div>`) : ''}
+    ${cBox(plan, '2px solid #1F1F1F')}${bank}
+    ${P.tip ? `<div class="small" style="line-height:1.55;color:#5A5A55">${esc(P.tip)}</div>` : ''}
+    ${can ? `<button class="btn" data-act="coachGo" data-m="${s.mode}">เอาตามนี้ · จด${P.now.length ? 'ของตอนนี้' : ''}ให้เลย</button>` : `<button class="btn" data-act="coachGo" data-m="${s.mode}">โอเค</button>`}
+    <div class="row" style="gap:8px"><button class="chip" data-act="coachAlt" style="flex:1;justify-content:center">ไม่มีของนี้ ขอแผนอื่น</button><button class="chip" data-act="rescueAsk" data-m="${s.mode}" style="flex:1;justify-content:center">คุยกับ Claude</button></div>`);
+}
+/* 30-minute check-in, shown on Today when she comes back */
+function coachCheckCard() {
+  const c = db.coachCheck; if (!c || c.date !== todayKey() || Date.now() < c.at || Date.now() > c.at + 4 * 3600e3) return '';
+  return `<div class="card" style="display:flex;flex-direction:column;gap:12px">${coachSay('happy', c.mode === 'hungry' ? 'ผ่านมาสักพักแล้ว อิ่มขึ้นไหมชีส?' : 'ความอยากหวานเบาลงหรือยัง?')}
+    <div class="row" style="gap:8px"><button class="chip" data-act="coachOk" style="flex:1;justify-content:center;height:44px;background:#E7F4EA">ดีขึ้นแล้ว</button><button class="chip" data-act="coachStill" style="flex:1;justify-content:center;height:44px;background:${c.mode === 'hungry' ? '#FFE6D6' : '#FFE8F3'}">${c.mode === 'hungry' ? 'ยังหิวอยู่' : 'ยังอยากอยู่'}</button></div></div>`;
+}
+/* shift-day nudge before the shift starts */
+function coachShiftCard() {
+  const k = todayKey(); const st = shiftType(k); if (!st || !SHIFT_T[st]) return ''; const T = SHIFT_T[st]; const now = new Date(); const h = now.getHours() + now.getMinutes() / 60;
+  if (!(h >= T.from - 3.5 && h < T.from)) return ''; if ((db.coachSeen || {})[k + st]) return '';
+  const def = { 'เช้า': 'ก่อนเริ่มเวร กินมื้อเช้าที่มีโปรตีนให้อิ่มถึงเที่ยง แล้วพกฝรั่งหรือนมจืดติดไปด้วย', 'บ่าย': 'ก่อนเริ่มเวร กินมื้อหลักราวบ่ายสามครึ่ง แล้วเก็บงบไว้ 150–200 kcal สำหรับกลางเวร', 'ช/บ': 'วันนี้ยาว 16 ชม. แบ่งกินเป็น 4 ช่วง เช้า เที่ยง ราวห้าโมงเย็น และกลางคืน พกของว่างโปรตีนไปด้วย' }[st];
+  const tip = (COACH && COACH.shiftTips && COACH.shiftTips[st]) || def;
+  return `<div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="row" style="gap:8px"><span class="ic" style="width:22px;height:22px;border-radius:11px;background:#ECE9FC"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4a8 8 0 1 0 5 13A6.5 6.5 0 0 1 15 4z" fill="#B9B1F0" stroke="#1F1F1F" stroke-width="1.5"/></svg></span><span class="small" style="font-weight:700;flex:1;min-width:0">วันนี้มี${T.label} · เริ่ม ${hm(T.from)}</span><button class="link" data-act="coachSeen" data-k="${k + st}" style="width:auto;flex:none;min-height:32px;padding:0 4px">ปิด</button></div>${coachSay('wave', esc(tip), '#ECE9FC')}</div>`;
+}
+/* weekly plan written by Claude on Mondays (noneang_coach table) */
+function coachWeekRow() {
+  if (!COACH || COACH.week !== mondayOf(todayKey())) return '';
+  return `<button data-act="sheet" data-type="coachWeek" class="card" style="border:none;width:calc(100% - 32px);display:flex;align-items:center;gap:12px;text-align:left">${mascot('proud', 40)}<span style="flex:1;min-width:0"><span class="small mut" style="font-weight:700">แผนโค้ชสัปดาห์นี้</span><b style="display:block;font-size:15px;line-height:1.4">${esc(COACH.title || '')}</b></span>›</button>`;
+}
+function coachWeekSheet(wrap, closeBtn) {
+  const P = COACH; const mon = P.week; const ds = [...Array(7)].map((_, i) => addDays(mon, i)); const TH = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'];
+  const mx = Math.max(...ds.map((d) => goalOf(d))); const tot = ds.reduce((a, d) => a + goalOf(d), 0);
+  const bar = (d, i) => { const st = shiftType(d); const g = goalOf(d); const cd = coachDay(d) || {}; return `<div style="flex:1;text-align:center;display:flex;flex-direction:column;gap:4px;align-items:center;min-width:0"><span style="font-size:11px;font-weight:700;color:${d === todayKey() ? '#1F1F1F' : '#8A8A85'}">${TH[i]}</span><span style="width:100%;height:${Math.round(56 + 34 * g / mx)}px;border-radius:14px;background:${st ? '#ECE9FC' : '#FFF6CF'};${d === todayKey() ? 'box-shadow:inset 0 0 0 2px #1F1F1F;' : ''}display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;padding-bottom:6px;box-sizing:border-box">${cd.train ? svgI('dumbbell', 14) : ''}<b style="font-size:11.5px">${fmt(g)}</b></span><span style="font-size:10px;color:#8A8A85;white-space:nowrap">${st || ''}</span></div>`; };
+  const num = (n) => `<span class="ic" style="width:24px;height:24px;border-radius:12px;background:#FFD000;font-size:12px;font-weight:700;flex-shrink:0">${n}</span>`;
+  return wrap(`${hlCss}<div class="row" style="gap:12px">${mascot('proud', 54)}<span style="flex:1;min-width:0"><span class="small mut" style="font-weight:700">แผนโค้ช · ${thDate(mon)} – ${thDate(addDays(mon, 6))}</span><b style="font-size:19px;display:block;line-height:1.35">${P.titleHtml || esc(P.title || '')}</b></span>${closeBtn}</div>
+    ${(P.recap || []).length ? cBox(`${cSec('สัปดาห์ที่แล้วเจออะไร')}<div style="display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.6">${P.recap.map((x) => `<div class="row" style="gap:8px;align-items:flex-start">${iconBox(x.ic || 'flame', 14, 26)}<span style="flex:1">${x.t}</span></div>`).join('')}</div>`) : ''}
+    ${cBox(`<div class="row"><span style="flex:1">${cSec('งบแต่ละวัน · เวรจากปฏิทิน')}</span><span class="small mut">รวม ${fmt(tot)}</span></div><div class="row" style="gap:5px;align-items:flex-end">${ds.map(bar).join('')}</div>${P.budgetNote ? `<div class="small mut" style="line-height:1.55">${esc(P.budgetNote)}</div>` : ''}`)}
+    ${(P.rules || []).length ? cBox(`${cSec(P.rules.length + ' กติกาของสัปดาห์นี้')}<div style="display:flex;flex-direction:column;gap:10px;font-size:14px;line-height:1.55">${P.rules.map((x, i) => `<div class="row" style="gap:10px;align-items:flex-start">${num(i + 1)}<span style="flex:1"><b>${esc(x.t)}</b> ${esc(x.d || '')}</span></div>`).join('')}</div>`) : ''}
+    ${P.goal ? cBox(`${cSec('เป้าเล็กๆ ท้าทายตัวเอง')}<div class="row" style="gap:10px">${iconBox(P.goal.ic || 'veg', 20, 38)}<span style="flex:1;font-size:14px;line-height:1.5">${esc(P.goal.t)}${P.goal.d ? '<br><span class="small mut">' + esc(P.goal.d) + '</span>' : ''}</span></div>`, 'none', '#FFFBEB') : ''}
+    <button class="btn" data-act="close">โอเค</button>`);
 }
 
 /* ================= habits: streak · stickers · reward · recap ================= */
@@ -768,7 +859,7 @@ const flagOn = (k, f) => !!(db.dayFlags && db.dayFlags[k] && db.dayFlags[k][f]);
 const CHECK14 = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>';
 const dayPill = (act, k, f, on, ic, label, bg) => `<button data-act="${act}" data-d="${k}" data-f="${f}" aria-pressed="${on}" style="flex:1;min-width:0;height:40px;border-radius:20px;${on ? 'border:none;background:' + bg : 'border:1.5px solid #E8E2D0;background:#fff'};display:inline-flex;align-items:center;justify-content:center;gap:3px;font-size:12.5px;font-weight:700;white-space:nowrap;padding:0 3px">${ic}${label}</button>`;
 const rescueLink = (k) => { const m = flagOn(k, 'hungry') ? 'hungry' : flagOn(k, 'sweet') ? 'sweet' : null; if (!m || k !== todayKey()) return ''; return `<button data-act="rescueOpen" data-m="${m}" style="margin-top:8px;width:100%;border:none;background:#FFFBEB;border-radius:16px;min-height:42px;padding:6px 12px;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ink)">${iconBox(m === 'hungry' ? 'soup' : 'icecream', 14, 26)}<span style="flex:1;text-align:left">${m === 'hungry' ? 'หิวมาก' : 'อยากหวาน'} · ดูวิธีผ่านวันนี้ไปให้รอด</span>›</button>`; };
-const shiftChip = (k) => `<div class="row" style="gap:6px">${dayPill('shiftToggle', k, 'shift', shiftOn(k), '<span class="ic" style="width:22px;height:22px;border-radius:11px;background:#fff"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4a8 8 0 1 0 5 13A6.5 6.5 0 0 1 15 4z" fill="#B9B1F0" stroke="#1F1F1F" stroke-width="1.5" stroke-linejoin="round"/></svg></span>', 'เวรบ่าย', '#ECE9FC')}${dayPill('flagToggle', k, 'hungry', flagOn(k, 'hungry'), iconBox('soup', 14, 22), 'หิวมาก', '#FFE6D6')}${dayPill('flagToggle', k, 'sweet', flagOn(k, 'sweet'), iconBox('icecream', 14, 22), 'อยากหวาน', '#FFE8F3')}</div>`;
+const shiftChip = (k) => `<div class="row" style="gap:6px">${dayPill('shiftToggle', k, 'shift', !!shiftType(k), '<span class="ic" style="width:22px;height:22px;border-radius:11px;background:#fff"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4a8 8 0 1 0 5 13A6.5 6.5 0 0 1 15 4z" fill="#B9B1F0" stroke="#1F1F1F" stroke-width="1.5" stroke-linejoin="round"/></svg></span>', (shiftType(k) && SHIFT_T[shiftType(k)] ? SHIFT_T[shiftType(k)].label : 'เวรบ่าย'), '#ECE9FC')}${dayPill('flagToggle', k, 'hungry', flagOn(k, 'hungry'), iconBox('soup', 14, 22), 'หิวมาก', '#FFE6D6')}${dayPill('flagToggle', k, 'sweet', flagOn(k, 'sweet'), iconBox('icecream', 14, 22), 'อยากหวาน', '#FFE8F3')}</div>`;
 
 function markDay(k, status) { db.dayStatus[k] = status; save(); S.sheet = null; render(); toast(status === 'special' ? 'บันทึกเป็นวันมื้อพิเศษแล้ว' : 'จดครบ ' + (k === todayKey() ? 'วันนี้' : thDate(k)) + ' แล้ว', null, 'yay'); }
 
@@ -1580,10 +1671,16 @@ const A = {
   goalWStep: (el) => { S.sheet.v = Math.max(35, (S.sheet.v ?? (db.profile.goalWeight || 70)) + Number(el.dataset.d)); renderLayer(); },
   goalWSave: () => { db.profile.goalWeight = S.sheet.v ?? (db.profile.goalWeight || 70); save(); closeSheet(); render(); },
   flagToggle: (el) => { const d = el.dataset.d, f = el.dataset.f; db.dayFlags = db.dayFlags || {}; const o = db.dayFlags[d] || {}; const turnOn = !o[f]; if (o[f]) delete o[f]; else o[f] = 1; if (Object.keys(o).length) db.dayFlags[d] = o; else delete db.dayFlags[d]; save(); render(); if (turnOn && d === todayKey()) openSheet({ type: 'rescue', mode: f }); },
+  coachGo: (el) => { const m = el.dataset.m; const { P } = coachPlan(m, (S.sheet && S.sheet.alt) || 0); const es = P.now.map((it) => { const e = [...db.entries].reverse().find((x) => x.name === it.name); if (!e) return null; const f = foodById(e.foodId) || { id: e.foodId, name: e.name, icon: e.icon, cat: e.cat, kind: 'item', unit: '' }; const ne = addEntry(f, { n: { k: e.k, p: e.p, f: e.f }, qty: e.qty, grams: e.grams, date: todayKey(), slot: slotNow(), src: e.src }); if (ne) ne.unitLabel = e.unitLabel; return ne; }).filter(Boolean);
+    db.coachCheck = { date: todayKey(), at: Date.now() + (m === 'hungry' ? 30 : 15) * 60e3, mode: m }; save(); closeSheet(); render(); toast(es.length ? 'จดให้แล้ว เดี๋ยวกลับมาถามนะ' : 'โอเค เดี๋ยวกลับมาถามนะ'); },
+  coachAlt: () => { S.sheet.alt = (S.sheet.alt || 0) + 1; renderLayer(); },
+  coachOk: () => { delete db.coachCheck; save(); render(); toast('เก่งมาก ผ่านไปได้แล้ว'); },
+  coachStill: () => { const m = db.coachCheck.mode; delete db.coachCheck; save(); render(); openSheet({ type: 'rescue', mode: m, alt: 1 }); },
+  coachSeen: (el) => { db.coachSeen = db.coachSeen || {}; db.coachSeen[el.dataset.k] = 1; save(); render(); },
   rescueOpen: (el) => openSheet({ type: 'rescue', mode: el.dataset.m }),
   rescueAsk: (el) => openSheet({ type: 'ask', sel: [el.dataset.m === 'hungry' ? 'หิวมาก' : 'อยากกินของหวาน'] }),
   rescueLog: (el) => { const nm = el.dataset.n; const e = [...db.entries].reverse().find((x) => x.name === nm); if (!e) return; const f = foodById(e.foodId) || { id: e.foodId, name: e.name, icon: e.icon, cat: e.cat, kind: 'item', unit: '' }; const ne = addEntry(f, { n: { k: e.k, p: e.p, f: e.f }, qty: e.qty, grams: e.grams, date: todayKey(), slot: slotNow(), src: e.src }); if (!ne) return; ne.unitLabel = e.unitLabel; save(); closeSheet(); render(); toast('จด ' + nm + ' แล้ว'); },
-  shiftToggle: (el) => { const d = el.dataset.d; db.shifts = db.shifts || {}; if (db.shifts[d]) delete db.shifts[d]; else db.shifts[d] = true; save(); render(); },
+  shiftToggle: (el) => { const d = el.dataset.d; const cd = coachDay(d); if (cd && cd.shift && !(db.shifts && db.shifts[d])) { toast('วันนี้มี' + (SHIFT_T[cd.shift] ? SHIFT_T[cd.shift].label : 'เวร') + 'ตามปฏิทิน ถ้าเปลี่ยน แก้ในปฏิทินได้เลย', null, 'calm'); return; } db.shifts = db.shifts || {}; if (db.shifts[d]) delete db.shifts[d]; else db.shifts[d] = true; save(); render(); },
   breakStart: () => { db.dietBreak = { start: todayKey(), days: 7 }; save(); render(); toast('เริ่มพักเครื่อง · เป้า ' + fmt(goalOf()) + ' kcal', null, 'yay'); },
   breakStop: () => { if (db.dietBreak) db.dietBreak.end = addDays(todayKey(), -1); save(); render(); toast('กลับสู่เป้า ' + fmt(goalOf())); },
   flatGoalSet: (el) => { db.profile.flatGoal = Number(el.dataset.v); save(); render(); toast('เป้าใหม่ ' + fmt(goalOf()) + ' kcal'); },

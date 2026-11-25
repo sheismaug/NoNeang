@@ -86,8 +86,15 @@ const Cloud = {
       else if (!lAt || rAt > lAt) this.adopt(remote);
       else if (lAt > rAt) await this.push();
       this.lastSync = new Date(); this.state = 'ok';
+      this.pullCoach();
     } catch (e) { this.state = navigator.onLine === false ? 'offline' : 'error'; this.err = e && e.message; }
     this.refreshUi();
+  },
+  async pullCoach() {
+    try { const { data, error } = await this.sb.from('noneang_coach').select('plan, updated_at').eq('user_id', this.user.id).maybeSingle();
+      if (error || !data || !data.plan) return; const old = JSON.stringify(COACH); COACH = data.plan;
+      try { localStorage.setItem('noneang.coach', JSON.stringify(COACH)); } catch (e) {}
+      if (old !== JSON.stringify(COACH) && typeof S !== 'undefined' && S.view === 'today') render(); } catch (e) {}
   },
   adopt(remote) {
     db = remote; db.rewards = db.rewards || []; db.seenRecap = db.seenRecap || {};
