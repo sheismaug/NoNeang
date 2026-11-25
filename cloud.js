@@ -92,7 +92,7 @@ const Cloud = {
   },
   async pullCoach() {
     try { const { data, error } = await this.sb.from('noneang_coach').select('plan, updated_at').eq('user_id', this.user.id).maybeSingle();
-      if (error || !data || !data.plan) return; const old = JSON.stringify(COACH); COACH = data.plan;
+      if (error || !data || !data.plan) return; const old = JSON.stringify(COACH); COACH = data.plan; coachBase();
       try { localStorage.setItem('noneang.coach', JSON.stringify(COACH)); } catch (e) {}
       if (old !== JSON.stringify(COACH) && typeof S !== 'undefined' && S.view === 'today') render(); } catch (e) {}
   },

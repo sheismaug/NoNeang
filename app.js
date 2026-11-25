@@ -29,12 +29,14 @@ const pencil = (c = '#5E5E5E') => `<svg width="15" height="15" viewBox="0 0 24 2
 /* ================= storage adapter ================= */
 const KEY = 'noneang.v1';
 let COACH = (() => { try { return JSON.parse(localStorage.getItem('noneang.coach')); } catch (e) { return null; } })();
+function coachBase() { if (!db || !COACH || !COACH.base || !COACH.baseAt) return; if ((db.profile.coachBaseAt || '') >= COACH.baseAt) return; db.profile.flatGoal = COACH.base; db.profile.coachBaseAt = COACH.baseAt; Store.save(db); }
 const Store = {
   load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } },
   save(d) { d.updatedAt = new Date().toISOString(); try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { toast('บันทึกลงเครื่องไม่ได้ (พื้นที่เต็มหรือโหมดส่วนตัว)'); } if ((typeof Cloud !== 'undefined')) Cloud.queue(); }
 };
 let db = Store.load();
 if (db) { db.rewards = db.rewards || []; db.seenRecap = db.seenRecap || {}; db.plates = db.plates || []; db.periodEnds = db.periodEnds || {}; db.workouts = db.workouts || []; if (!db.fixUnitsV1) { (db.foods || []).forEach((f) => { if (f.kind === 'sized' && f.per100 && f.def === 100 && f.userId && f.sizes && f.sizes[0] && f.sizes[0][1] === 'ครึ่ง') { f.kind = 'item'; f.unit = 'หน่วย'; f.n = { ...f.per100 }; delete f.per100; delete f.sizes; delete f.def; } }); db.fixUnitsV1 = true; window.__fixSave = true; } db.exPrefs = db.exPrefs || { walkMin: 30, incline: 10, speed: 4.5 }; db.exGoal = db.exGoal || { weight: 3, walk: 180 }; if (db.profile && !db.profile.flatGoal) db.profile.flatGoal = 1500; const mk = db.foods.find((f) => f.id === 'milk'); if (mk && !mk.group) mk.group = 'นมโปรตีน'; }
+try { coachBase(); } catch (e) {}
 const save = () => Store.save(db);
 
 /* ================= calculations ================= */
@@ -432,8 +434,8 @@ function vMe() {
   const stack = `<div role="img" aria-label="ใช้ต่อวัน ${fmt(baseTDEE(p))} กินได้ ${fmt(tb.value)}" style="align-self:stretch;display:flex;flex-direction:column;gap:6px;margin-top:4px"><div style="display:flex;height:16px;border-radius:8px;overflow:hidden"><span style="flex:${tb.value};background:#FFD000"></span><span style="flex:${Math.max(0, baseTDEE(p) - tb.value)};background:repeating-linear-gradient(135deg,#FFE6E0 0 5px,#fff 5px 10px);border:1.5px dashed #FF8A65;border-radius:0 8px 8px 0"></span></div><div class="row small mut" style="justify-content:space-between;font-size:11px"><span>กินได้ ${fmt(tb.value)}</span><span>ลด ${fmt(baseTDEE(p) - tb.value)}</span><span>ใช้ต่อวัน ${fmt(baseTDEE(p))}</span></div></div>`;
   return hero(esc(p.name || 'ฉัน'), (p.sex === 'm' ? 'ชาย' : 'หญิง') + ' · ' + ageOf(p.birth) + ' ปี · ' + p.height + ' cm · เริ่ม ' + p.startWeight + ' kg', { pb: 70, right: mascot('happy', 90, chinLevel()) }) +
     `<div class="card lift" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:18px"><span class="mut" style="font-size:14px">เป้ากินต่อวัน · เท่ากันทุกวัน</span><span><b style="font-size:46px">${fmt(goalOf())}</b> <span class="mut">kcal</span></span><span class="small mut">เกินนิดหน่อยไม่ถึง ${fmt(okOf())} ก็ยังนับว่าโอเค</span>
-      <div class="row" style="gap:8px">${[1400, 1500, 1600].map((v) => `<button class="chip ${(db.profile.flatGoal || 1500) === v ? 'on' : ''}" data-act="flatGoal" data-v="${v}">${fmt(v)}</button>`).join('')}</div>
-      <span class="small mut" style="text-align:center;line-height:1.5">น้ำหนักไม่ขยับ 3 สัปดาห์ → ลอง 1,400 · เหนื่อย/แรงยกตก → 1,600</span>
+      <div class="row" style="gap:8px">${[...new Set([1500, 1600, 1650, 1700, db.profile.flatGoal || 1500])].sort((a, b) => a - b).map((v) => `<button class="chip ${(db.profile.flatGoal || 1500) === v ? 'on' : ''}" data-act="flatGoal" data-v="${v}">${fmt(v)}</button>`).join('')}</div>
+      <span class="small mut" style="text-align:center;line-height:1.5">น้ำหนักไม่ขยับ 3 สัปดาห์ → ลดลง 100 · เหนื่อย/แรงยกตก → เพิ่ม 50</span>
       <button class="link" data-act="sheet" data-type="formula" style="font-weight:700;color:var(--ink)">ตัวเลขนี้มาจากไหน ›</button></div>
     ${tdeeCard()}
     ${breakCard()}
