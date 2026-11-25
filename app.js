@@ -744,13 +744,6 @@ const cSec = (t) => `<span style="font-size:12px;font-weight:700;color:#8A8A85">
 const cFood = (it, sub) => `<div class="row" style="gap:10px;padding:6px 0">${iconBox(it.icon, 20, 38)}<span style="flex:1;min-width:0"><b style="font-size:14px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</b><span class="small mut">${sub != null ? sub : esc(it.unit) + (it.p >= 5 ? ' · P ' + it.p + ' g' : '')}</span></span><b style="font-size:14px">${fmt(it.k)}</b></div>`;
 /* basket: she picks from foods she keeps in stock; kcal left counts down live */
 const VEG_IC = new Set(['veg', 'salad', 'broc', 'peas']);
-function coachStock(mode) {
-  const fs = db.foods.filter((f) => !f.deleted && !f.hidden && (f.kind === 'sized' || f.n) && !avoidFood(f.name));
-  const n1 = (f) => nutr(f, f.kind === 'sized' ? { grams: f.def } : {}) || { k: 0, p: 0, f: 0 };
-  const score = (f) => { const n = n1(f); const u = Math.log2(2 + (f.uses || 0)); if (mode === 'sweet') return (SWEET_IC.has(f.icon) || SWEET_RX.test(f.name) ? 3 : 0) + (TREAT_IC.has(f.icon) ? -1 : 0) + u * 0.6;
-    return u + (n.p >= 15 ? 1.5 : 0) + (VEG_IC.has(f.icon) || f.cat === 'veg' ? 1.2 : 0); };
-  return fs.filter((f) => (f.uses || 0) > 0).sort((a, b) => score(b) - score(a)).slice(0, 9);
-}
 const bNutr = (it) => { const f = foodById(it.id); if (!f) return { k: 0, p: 0, f: 0 }; return (f.kind === 'sized' ? nutr(f, { grams: Math.round(f.def * it.q) }) : nutr(f, { qty: it.q })) || { k: 0, p: 0, f: 0 }; };
 const bUnit = (it) => { const f = foodById(it.id); return f.kind === 'sized' ? Math.round(f.def * it.q) + ' g' : String(it.q); };
 function coachBasketHtml(s, rem) {
@@ -766,18 +759,14 @@ function coachBasketHtml(s, rem) {
   else if (!hasV) hint = 'เติมผักอีกนิด อิ่มท้องขึ้นโดยแคลแทบไม่เพิ่ม';
   else if (keep && left < keep) hint = `ลองเหลือไว้สัก ${keep} kcal เผื่อหิวอีกรอบก่อนนอน`;
   else hint = keep ? `ดีเลย ยังเหลือไว้ ${fmt(left)} kcal เผื่อหิวก่อนนอน` : 'ดีเลย กินช้าๆ แล้วรอ 20 นาทีให้รู้สึกอิ่ม';
-  const stock = coachStock(s.mode); const inB = new Set(b.map((x) => x.id));
-  const chip = (f) => { const n = nutr(f, f.kind === 'sized' ? { grams: f.def } : {}) || { k: 0, p: 0 }; return `<button data-act="cbAdd" data-id="${f.id}" style="border:${inB.has(f.id) ? '2px solid #1F1F1F' : '1.5px solid #ECE7DB'};background:#fff;border-radius:16px;padding:7px 8px;display:flex;align-items:center;gap:7px;text-align:left;min-width:0">${iconBox(f.icon || CAT_ICON[f.cat] || 'main', 16, 30)}<span style="min-width:0;flex:1"><b style="font-size:12.5px;display:block;line-height:1.35;word-break:break-word">${esc(f.name)}</b><span style="font-size:11px;color:#8A8A85">${fmt(n.k)}${n.p >= 5 ? ' · P ' + Math.round(n.p) : ''}</span></span></button>`; };
   const row = (it, i) => { const f = foodById(it.id); const n = bNutr(it); return `<div class="row" style="gap:8px;padding:6px 0">${iconBox(f.icon || 'main', 16, 32)}<span style="flex:1;min-width:0"><b style="font-size:14px;display:block;line-height:1.4;word-break:break-word">${esc(f.name)}</b><span class="small mut">${fmt(n.k)} kcal${n.p >= 5 ? ' · P ' + Math.round(n.p) + ' g' : ''}</span></span><button data-act="cbQ" data-i="${i}" data-d="-1" aria-label="ลด" style="width:30px;height:30px;border-radius:15px;border:none;background:var(--g);font-size:17px;font-weight:700">−</button><b style="font-size:15px;min-width:44px;text-align:center;white-space:nowrap">${bUnit(it)}</b><button data-act="cbQ" data-i="${i}" data-d="1" aria-label="เพิ่ม" style="width:30px;height:30px;border-radius:15px;border:none;background:var(--g);font-size:17px;font-weight:700">+</button></div>`; };
   return `<div style="display:flex;flex-direction:column;gap:6px"><div class="row" style="align-items:baseline;gap:8px"><span style="font-size:13px;font-weight:700;flex:1">${over ? 'เกินงบวันนี้' : 'ยังเติมได้อีก'}</span><span style="font-size:30px;font-weight:700;color:${over ? '#D9534F' : '#1F1F1F'};letter-spacing:-.5px">${fmt(Math.abs(left))}</span><span class="small mut" style="font-weight:600">kcal</span></div>
     <div style="height:10px;border-radius:5px;background:#FFF3B0;position:relative;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:${pct.toFixed(1)}%;background:${over ? '#FF9B8A' : '#FFD000'};border-radius:5px;transition:width .2s"></div>${keep && rem > 0 ? `<div style="position:absolute;top:0;bottom:0;left:${((rem - keep) / rem * 100).toFixed(1)}%;width:2px;background:#1F1F1F;opacity:.35"></div>` : ''}</div>
     <div class="small mut">${fmt(rem)} kcal ที่เหลือวันนี้${sum.k ? ' · ใส่แล้ว ' + fmt(sum.k) + (sum.p >= 5 ? ' · P ' + Math.round(sum.p) + ' g' : '') : ''}</div></div>
     <div class="row" style="gap:8px;align-items:flex-start;background:#FFFBEB;border-radius:14px;padding:9px 12px">${mascot(over ? 'huh' : 'calm', 26)}<span class="small" style="line-height:1.55;flex:1">${hint}</span></div>
-    ${b.length ? `<div style="border-top:1px solid #F2EEE6;border-bottom:1px solid #F2EEE6">${b.map(row).join('')}</div>` : ''}
-    ${cSec(s.mode === 'sweet' ? 'ของที่มีประจำ · แตะเพื่อใส่' : 'ของที่มีประจำ · แตะเพื่อใส่')}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${stock.map(chip).join('')}</div>
-    <input data-input="sheet.cq" value="${esc(s.cq || '')}" placeholder="พิมพ์หาเมนูอื่น" aria-label="ค้นหาเมนู" style="height:44px;border-radius:14px;border:none;background:#F4F2EC;padding:0 14px;font-size:15px">
-    <div id="cq-res">${coachSearch(s.cq)}</div>`;
+    <input data-input="sheet.cq" value="${esc(s.cq || '')}" placeholder="พิมพ์ชื่อเมนูเพื่อเพิ่ม เช่น ไข่ข้น" aria-label="ค้นหาเมนู" style="height:46px;border-radius:14px;border:none;background:#F4F2EC;padding:0 14px;font-size:15px">
+    <div id="cq-res">${coachSearch(s.cq)}</div>
+    ${b.length ? `<div style="border-top:1px solid #F2EEE6">${b.map(row).join('')}</div>` : ''}`;
 }
 function coachSearch(q) { q = (q || '').trim(); if (!q) return '';
   const hit = db.foods.filter((f) => !f.deleted && (f.kind === 'sized' || f.n) && (f.name.includes(q) || (f.aliases || []).some((a) => a.includes(q)))).sort((a, b) => (b.uses || 0) - (a.uses || 0)).slice(0, 6);
