@@ -764,7 +764,7 @@ function coachBasketHtml(s, rem) {
     <div style="height:10px;border-radius:5px;background:#FFF3B0;position:relative;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:${pct.toFixed(1)}%;background:${over ? '#FF9B8A' : '#FFD000'};border-radius:5px;transition:width .2s"></div>${keep && rem > 0 ? `<div style="position:absolute;top:0;bottom:0;left:${((rem - keep) / rem * 100).toFixed(1)}%;width:2px;background:#1F1F1F;opacity:.35"></div>` : ''}</div>
     <div class="small mut">${fmt(rem)} kcal ที่เหลือวันนี้${sum.k ? ' · ใส่แล้ว ' + fmt(sum.k) + (sum.p >= 5 ? ' · P ' + Math.round(sum.p) + ' g' : '') : ''}</div></div>
     <div class="row" style="gap:8px;align-items:flex-start;background:#FFFBEB;border-radius:14px;padding:9px 12px">${mascot(over ? 'huh' : 'calm', 26)}<span class="small" style="line-height:1.55;flex:1">${hint}</span></div>
-    <input data-input="sheet.cq" value="${esc(s.cq || '')}" placeholder="พิมพ์ชื่อเมนูเพื่อเพิ่ม เช่น ไข่ข้น" aria-label="ค้นหาเมนู" style="height:46px;border-radius:14px;border:none;background:#F4F2EC;padding:0 14px;font-size:15px">
+    <div style="position:relative"><input data-input="sheet.cq" value="${esc(s.cq || '')}" placeholder="พิมพ์ชื่อเมนูเพื่อเพิ่ม เช่น ไข่ข้น" aria-label="ค้นหาเมนู" style="width:100%;box-sizing:border-box;height:46px;border-radius:14px;border:none;background:#F4F2EC;padding:0 46px 0 14px;font-size:15px"><button id="cq-x" data-act="cbClear" aria-label="ลบคำที่พิมพ์" style="position:absolute;right:7px;top:7px;width:32px;height:32px;border-radius:16px;border:none;background:#E4E0D6;display:${s.cq ? 'inline-flex' : 'none'};align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div id="cq-res">${coachSearch(s.cq)}</div>
     ${b.length ? `<div style="border-top:1px solid #F2EEE6">${b.map(row).join('')}</div>` : ''}`;
 }
@@ -1659,6 +1659,7 @@ const A = {
   coachGo: (el) => { const m = el.dataset.m; const b = (S.sheet && S.sheet.basket) || []; if (!b.length) return; const es = b.map((it) => { const f = foodById(it.id); if (!f) return null; return addEntry(f, f.kind === 'sized' ? { grams: Math.round(f.def * it.q), date: todayKey(), slot: slotNow() } : { qty: it.q, date: todayKey(), slot: slotNow() }); }).filter(Boolean);
     db.coachCheck = { date: todayKey(), at: Date.now() + (m === 'hungry' ? 30 : 15) * 60e3, mode: m }; save(); closeSheet(); render(); toast('จดให้แล้ว เดี๋ยวกลับมาถามนะ'); },
   cbAdd: (el) => { const s = S.sheet; s.basket = s.basket || []; const ex = s.basket.find((x) => x.id === el.dataset.id); if (ex) ex.q += foodById(ex.id).kind === 'sized' ? 0.5 : 1; else s.basket.push({ id: el.dataset.id, q: 1 }); s.cq = ''; const sc = document.querySelector('.sheet') && document.querySelector('.sheet').scrollTop; renderLayer(); const n = document.querySelector('.sheet'); if (n && sc != null) n.scrollTop = sc; },
+  cbClear: () => { S.sheet.cq = ''; const i = document.querySelector('[data-input="sheet.cq"]'); if (i) { i.value = ''; i.focus(); } const r = document.getElementById('cq-res'); if (r) r.innerHTML = ''; const x = document.getElementById('cq-x'); if (x) x.style.display = 'none'; },
   cbQ: (el) => { const s = S.sheet; const it = s.basket[Number(el.dataset.i)]; const st = foodById(it.id).kind === 'sized' ? 0.5 : 1; it.q = Math.round((it.q + st * Number(el.dataset.d)) * 2) / 2; if (it.q <= 0) s.basket.splice(Number(el.dataset.i), 1); const sc = document.querySelector('.sheet').scrollTop; renderLayer(); const n = document.querySelector('.sheet'); if (n) n.scrollTop = sc; },
   coachOk: () => { delete db.coachCheck; save(); render(); toast('เก่งมาก ผ่านไปได้แล้ว'); },
   coachStill: () => { const m = db.coachCheck.mode; delete db.coachCheck; save(); render(); openSheet({ type: 'rescue', mode: m }); },
@@ -1831,7 +1832,7 @@ document.addEventListener('input', (ev) => {
   if (k === 'rwName') { S.rw.name = el.value; return; }
   if (k === 'bq') { S.bq = el.value; refreshBuild(); return; }
   if (k === 'sheet.name') { S.sheet.name = el.value; return; }
-  if (k === 'sheet.cq') { S.sheet.cq = el.value; const r = document.getElementById('cq-res'); if (r) r.innerHTML = coachSearch(el.value); return; }
+  if (k === 'sheet.cq') { S.sheet.cq = el.value; const r = document.getElementById('cq-res'); if (r) r.innerHTML = coachSearch(el.value); const x = document.getElementById('cq-x'); if (x) x.style.display = el.value ? 'inline-flex' : 'none'; return; }
   if (k === 'sheet.txt') { S.sheet.txt = el.value; const pre = document.querySelector('.sheet pre'); if (pre) pre.textContent = askText([...(S.sheet.sel || []), el.value.trim()].filter(Boolean).join(' · ')); return; }
   if (k === 'sheet.minTxt') { S.sheet.minTxt = el.value; const v = num(el.value); if (v > 0) S.sheet.min = v;
     document.querySelectorAll('[data-act=walkMin]').forEach((b) => (b.style.background = Number(b.dataset.v) === S.sheet.min ? 'var(--y)' : 'var(--g)'));
